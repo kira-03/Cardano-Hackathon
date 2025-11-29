@@ -15,6 +15,9 @@ aiofiles==23.2.1
 reportlab==4.0.9
 weasyprint==60.2
 
+# Word Document Generation
+python-docx==1.1.0
+
 # Data processing
 pandas==2.2.0
 numpy==1.26.3
@@ -25,8 +28,16 @@ blockfrost-python==0.6.0
 # Masumi Integration
 requests==2.31.0
 
-# AI/LLM (optional)
-openai==1.10.0
+# AI/LLM
+openai==1.57.2
+
+# Web scraping (for exchange requirements)
+beautifulsoup4==4.12.3
+lxml==5.1.0
+
+# Email & Validation
+aiohttp==3.9.1
+colorama==0.4.6
 
 # Testing
 pytest==7.4.4

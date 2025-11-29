@@ -2,7 +2,7 @@
 Token Analysis Agent - AI-powered on-chain token metrics analysis and readiness scoring
 """
 from typing import Dict, Any, List
-import google.generativeai as genai
+from openai import OpenAI
 import json
 import logging
 import os
@@ -17,23 +17,19 @@ class TokenAnalysisAgent:
         self.cardano_service = cardano_service
         self.name = "AI Token Analysis Agent"
         
-        # Initialize Gemini AI capabilities
+        # Initialize OpenAI capabilities
         try:
-            if settings.gemini_api_key and settings.use_ai_analysis:
-                genai.configure(api_key=settings.gemini_api_key)
-                self.llm_model = genai.GenerativeModel('models/gemini-2.5-flash')
+            api_key = settings.openai_api_key or os.getenv('OPENAI_API_KEY')
+            if api_key and settings.use_ai_analysis:
+                self.llm_client = OpenAI(api_key=api_key)
+                self.llm_model = "gpt-4o-mini"
                 self.use_llm = True
-                logger.info("✅ AI Token Analysis Agent initialized with Gemini")
-            elif os.getenv('GEMINI_API_KEY') and settings.use_ai_analysis:
-                genai.configure(api_key=os.getenv('GEMINI_API_KEY'))
-                self.llm_model = genai.GenerativeModel('models/gemini-2.5-flash')
-                self.use_llm = True
-                logger.info("✅ AI Token Analysis Agent initialized with Gemini from environment")
+                logger.info("✅ AI Token Analysis Agent initialized with OpenAI")
             else:
                 raise Exception("AI analysis disabled or no API key")
         except Exception as e:
             logger.warning(f"⚠️ AI disabled for Token Analysis: {e}")
-            self.llm_model = None
+            self.llm_client = None
             self.use_llm = False
     
     async def analyze(self, policy_id: str) -> Dict[str, Any]:
@@ -45,7 +41,8 @@ class TokenAnalysisAgent:
         
         logger.info("  → Analyzing holder distribution...")
         holders = await self.cardano_service.get_token_holders(policy_id)
-        holder_analysis = await self.cardano_service.analyze_holder_distribution(holders)
+        total_supply_raw = int(token_info.get("quantity", 0))
+        holder_analysis = await self.cardano_service.analyze_holder_distribution(holders, total_supply_raw)
         
         logger.info("  → Estimating DEX liquidity...")
         liquidity = await self.cardano_service.get_dex_liquidity(policy_id)
@@ -61,31 +58,38 @@ class TokenAnalysisAgent:
         # Build metrics
         total_supply = int(token_info.get("quantity", 0))
         
+        # Check if market data is available (from CoinPaprika or other APIs)
+        market_data_available = liquidity.get("total_liquidity_usd") is not None
+        data_source = liquidity.get("data_source", "BlockFrost (on-chain only)")
+        
+        # Build combined data source description
+        if market_data_available:
+            combined_source = f"BlockFrost (on-chain) + {data_source}"
+        else:
+            combined_source = "BlockFrost (on-chain only)"
+        
         metrics = TokenMetrics(
             total_supply=str(total_supply),
             circulating_supply=str(total_supply),  # Assume all circulating for now
             holder_count=holder_analysis["total_holders"],
             top_10_concentration=holder_analysis["top_10_concentration"],
             top_50_concentration=holder_analysis["top_50_concentration"],
-            liquidity_usd=liquidity["total_liquidity_usd"],
-            volume_24h=liquidity["volume_24h_usd"],
+            liquidity_usd=liquidity.get("total_liquidity_usd"),  # From CoinPaprika if available
+            volume_24h=liquidity.get("volume_24h_usd"),  # From CoinPaprika if available
+            price_usd=liquidity.get("price_usd"),  # From CoinPaprika if available
+            market_cap_usd=liquidity.get("market_cap_usd"),  # From CoinPaprika if available
+            price_change_24h=liquidity.get("price_change_24h"),  # From CoinPaprika if available
             metadata_score=metadata_score,
-            contract_risk_score=contract_risk_score
+            contract_risk_score=contract_risk_score,
+            data_source=combined_source,
+            market_data_available=market_data_available
         )
         
         logger.info("  → Calculating readiness score...")
-        # Calculate readiness score (use AI if available)
-        if self.use_llm:
-            readiness_score = await self._calculate_ai_readiness_score(token_info, metrics)
-        else:
-            readiness_score = self._calculate_readiness_score(metrics)
-        
+        # Always use agentic AI (LLM) for readiness score and recommendations
+        readiness_score = await self._calculate_ai_readiness_score(token_info, metrics)
         logger.info("  → Generating recommendations...")
-        # Generate recommendations (use AI if available)
-        if self.use_llm:
-            recommendations = await self._generate_ai_recommendations(token_info, metrics, readiness_score)
-        else:
-            recommendations = self._generate_recommendations(metrics, readiness_score)
+        recommendations = await self._generate_ai_recommendations(token_info, metrics, readiness_score)
         
         logger.info(f"  ✓ Analysis complete: Score={readiness_score.total_score}, Grade={readiness_score.grade}")
         
@@ -100,26 +104,39 @@ class TokenAnalysisAgent:
         """
         Calculate listing readiness score (0-100)
         
-        Weights:
+        Note: When market data (liquidity, volume) is not available from DEX APIs,
+        we score based only on on-chain metrics from BlockFrost.
+        
+        Weights when market data available:
         - Liquidity: 30%
         - Holder Distribution: 25%
         - Metadata: 15%
         - Security: 15%
         - Supply Stability: 10%
         - Market Activity: 5%
+        
+        Weights when market data NOT available:
+        - Holder Distribution: 40%
+        - Metadata: 25%
+        - Security: 25%
+        - Supply Stability: 10%
         """
         
-        # Liquidity Score (0-100)
-        # Good: >$100k, Moderate: $50k-100k, Poor: <$50k
-        liquidity = metrics.liquidity_usd
-        if liquidity >= 100000:
-            liquidity_score = 100
-        elif liquidity >= 50000:
-            liquidity_score = 70 + (liquidity - 50000) / 50000 * 30
-        elif liquidity >= 10000:
-            liquidity_score = 40 + (liquidity - 10000) / 40000 * 30
+        has_market_data = metrics.liquidity_usd is not None and metrics.volume_24h is not None
+        
+        # Liquidity Score (0-100) - Only if data available
+        if has_market_data and metrics.liquidity_usd is not None:
+            liquidity = metrics.liquidity_usd
+            if liquidity >= 100000:
+                liquidity_score = 100
+            elif liquidity >= 50000:
+                liquidity_score = 70 + (liquidity - 50000) / 50000 * 30
+            elif liquidity >= 10000:
+                liquidity_score = 40 + (liquidity - 10000) / 40000 * 30
+            else:
+                liquidity_score = liquidity / 10000 * 40
         else:
-            liquidity_score = liquidity / 10000 * 40
+            liquidity_score = 0  # Unknown - not counted in score
         
         # Holder Distribution Score (0-100)
         # Lower concentration = better decentralization
@@ -134,7 +151,9 @@ class TokenAnalysisAgent:
             holder_score = max(0, 20 - (top_10 - 60) / 40 * 20)
         
         # Bonus for holder count
-        if metrics.holder_count >= 1000:
+        if metrics.holder_count >= 10000:
+            holder_score = min(100, holder_score + 20)
+        elif metrics.holder_count >= 1000:
             holder_score = min(100, holder_score + 10)
         elif metrics.holder_count >= 500:
             holder_score = min(100, holder_score + 5)
@@ -148,8 +167,8 @@ class TokenAnalysisAgent:
         # Supply Stability Score (simplified - assume stable for hackathon)
         supply_stability_score = 85.0
         
-        # Market Activity Score (based on volume/liquidity ratio)
-        if metrics.liquidity_usd > 0:
+        # Market Activity Score - Only if data available
+        if has_market_data and metrics.liquidity_usd and metrics.liquidity_usd > 0 and metrics.volume_24h is not None:
             volume_ratio = metrics.volume_24h / metrics.liquidity_usd
             if volume_ratio >= 0.15:  # 15%+ daily turnover
                 market_activity_score = 100
@@ -158,17 +177,27 @@ class TokenAnalysisAgent:
             else:
                 market_activity_score = volume_ratio / 0.05 * 60
         else:
-            market_activity_score = 0
+            market_activity_score = 0  # Unknown - not counted
         
-        # Calculate weighted total
-        total_score = (
-            liquidity_score * 0.30 +
-            holder_score * 0.25 +
-            metadata_score * 0.15 +
-            security_score * 0.15 +
-            supply_stability_score * 0.10 +
-            market_activity_score * 0.05
-        )
+        # Calculate weighted total based on available data
+        if has_market_data:
+            # Full scoring with market data
+            total_score = (
+                liquidity_score * 0.30 +
+                holder_score * 0.25 +
+                metadata_score * 0.15 +
+                security_score * 0.15 +
+                supply_stability_score * 0.10 +
+                market_activity_score * 0.05
+            )
+        else:
+            # On-chain only scoring (no market data)
+            total_score = (
+                holder_score * 0.40 +
+                metadata_score * 0.25 +
+                security_score * 0.25 +
+                supply_stability_score * 0.10
+            )
         
         # Determine grade
         if total_score >= 85:
@@ -198,58 +227,35 @@ class TokenAnalysisAgent:
         metrics: TokenMetrics,
         score: ReadinessScore
     ) -> List[Recommendation]:
-        """Generate actionable recommendations"""
+        """
+        Generate recommendations by referencing exchange and chain requirements,
+        matching them with actual token data, and producing dynamic, context-aware statements.
+        """
+        # Import ExchangePreparationAgent dynamically to avoid circular imports
+        from agents.exchange_preparation_agent import ExchangePreparationAgent
+        # Assume default exchanges and chains for now
+        target_exchanges = ["Binance", "KuCoin", "Gate.io", "MEXC"]
+        agent = ExchangePreparationAgent()
+        # Use the requirement checker to get requirements for each exchange
+        all_requirements = []
+        for exchange in target_exchanges:
+            if hasattr(agent, "_check_exchange_requirements"):
+                reqs = agent._check_exchange_requirements(exchange, metrics, score)
+                all_requirements.extend(reqs)
+
+        # For each unmet requirement, generate a dynamic recommendation
         recommendations = []
-        
-        # Liquidity recommendations
-        if score.liquidity_score < 70:
-            recommendations.append(Recommendation(
-                category="Liquidity",
-                priority="high",
-                issue=f"Low liquidity: ${metrics.liquidity_usd:,.0f}",
-                recommendation="Increase DEX pool liquidity to at least $50,000. Consider incentive programs or liquidity mining.",
-                estimated_impact="+15-20 points to readiness score"
-            ))
-        
-        # Holder distribution recommendations
-        if score.holder_distribution_score < 60:
-            recommendations.append(Recommendation(
-                category="Holder Distribution",
-                priority="high",
-                issue=f"High whale concentration: Top 10 hold {metrics.top_10_concentration}%",
-                recommendation="Improve token distribution through airdrops, community programs, or gradual whale sell-offs.",
-                estimated_impact="+10-15 points to readiness score"
-            ))
-        
-        if metrics.holder_count < 500:
-            recommendations.append(Recommendation(
-                category="Holder Count",
-                priority="medium",
-                issue=f"Only {metrics.holder_count} holders",
-                recommendation="Increase holder base to at least 500 through marketing and community building.",
-                estimated_impact="+5-10 points to readiness score"
-            ))
-        
-        # Metadata recommendations
-        if score.metadata_score < 80:
-            recommendations.append(Recommendation(
-                category="Metadata",
-                priority="medium",
-                issue="Incomplete token metadata",
-                recommendation="Add missing metadata fields: website, social links, detailed description, and verified logo.",
-                estimated_impact="+5-8 points to readiness score"
-            ))
-        
-        # Market activity recommendations
-        if score.market_activity_score < 50:
-            recommendations.append(Recommendation(
-                category="Market Activity",
-                priority="low",
-                issue="Low trading volume",
-                recommendation="Increase trading activity through partnerships, listings on more DEXes, and market making.",
-                estimated_impact="+2-5 points to readiness score"
-            ))
-        
+        for req in all_requirements:
+            if not req.meets_requirement:
+                recommendations.append(Recommendation(
+                    category="Exchange Requirement",
+                    priority="high",
+                    issue=f"{req.exchange}: {req.requirement}",
+                    recommendation=f"{req.current_status}. Refer to {req.exchange} docs for details.",
+                    estimated_impact="Required for listing approval"
+                ))
+
+        # Only return dynamic, requirements-driven recommendations
         return recommendations
     
     async def _calculate_ai_readiness_score(self, token_info: Dict[str, Any], metrics: TokenMetrics) -> ReadinessScore:
@@ -258,23 +264,26 @@ class TokenAnalysisAgent:
             logger.info("🤖 AI calculating comprehensive readiness score...")
             
             # Prepare comprehensive data for AI analysis
+            # Convert metrics to dict if it's a Pydantic model
+            metrics_dict = metrics.dict() if hasattr(metrics, 'dict') else metrics
+            
             analysis_data = {
                 "token_info": {
                     "name": token_info.get("asset_name", "Unknown"),
                     "policy_id": token_info.get("policy_id", ""),
                     "fingerprint": token_info.get("fingerprint", ""),
-                    "metadata": token_info.get("metadata", {})
+                    "metadata": str(token_info.get("metadata", {}))  # Convert to string to avoid serialization issues
                 },
                 "on_chain_metrics": {
-                    "total_supply": metrics.total_supply,
-                    "circulating_supply": metrics.circulating_supply,
-                    "holder_count": metrics.holder_count,
-                    "top_10_concentration": metrics.top_10_concentration,
-                    "top_50_concentration": metrics.top_50_concentration,
-                    "liquidity_usd": metrics.liquidity_usd,
-                    "volume_24h": metrics.volume_24h,
-                    "metadata_score": metrics.metadata_score,
-                    "contract_risk_score": metrics.contract_risk_score
+                    "total_supply": metrics_dict.get("total_supply") if isinstance(metrics_dict, dict) else metrics.total_supply,
+                    "circulating_supply": metrics_dict.get("circulating_supply") if isinstance(metrics_dict, dict) else metrics.circulating_supply,
+                    "holder_count": metrics_dict.get("holder_count") if isinstance(metrics_dict, dict) else metrics.holder_count,
+                    "top_10_concentration": metrics_dict.get("top_10_concentration") if isinstance(metrics_dict, dict) else metrics.top_10_concentration,
+                    "top_50_concentration": metrics_dict.get("top_50_concentration") if isinstance(metrics_dict, dict) else metrics.top_50_concentration,
+                    "liquidity_usd": metrics_dict.get("liquidity_usd") if isinstance(metrics_dict, dict) else metrics.liquidity_usd,
+                    "volume_24h": metrics_dict.get("volume_24h") if isinstance(metrics_dict, dict) else metrics.volume_24h,
+                    "metadata_score": metrics_dict.get("metadata_score") if isinstance(metrics_dict, dict) else metrics.metadata_score,
+                    "contract_risk_score": metrics_dict.get("contract_risk_score") if isinstance(metrics_dict, dict) else metrics.contract_risk_score
                 }
             }
             
@@ -282,7 +291,7 @@ class TokenAnalysisAgent:
 You are an expert DeFi analyst specializing in token economics and exchange listings. Analyze this Cardano token comprehensively.
 
 TOKEN DATA:
-{json.dumps(analysis_data, indent=2)}
+{json.dumps(analysis_data, indent=2, default=str)}
 
 ANALYSIS FRAMEWORK:
 1. LIQUIDITY ANALYSIS (30% weight):
@@ -350,9 +359,21 @@ PROVIDE DETAILED ANALYSIS IN THIS JSON FORMAT:
 Be thorough and provide actionable insights for exchange listing preparation.
 """
             
-            response = self.llm_model.generate_content(prompt)
+            response = self.llm_client.chat.completions.create(
+                model=self.llm_model,
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.3,
+                response_format={"type": "json_object"}
+            )
             
-            ai_analysis = json.loads(response.text)
+            # Extract JSON from response text (handle markdown code blocks)
+            response_text = response.choices[0].message.content.strip()
+            if "```json" in response_text:
+                response_text = response_text.split("```json")[1].split("```")[0].strip()
+            elif "```" in response_text:
+                response_text = response_text.split("```")[1].split("```")[0].strip()
+            
+            ai_analysis = json.loads(response_text)
             
             # Create enhanced ReadinessScore with AI insights
             scores = ai_analysis["component_scores"]
@@ -395,45 +416,62 @@ Be thorough and provide actionable insights for exchange listing preparation.
             readiness_factors = getattr(score, 'exchange_readiness_factors', {})
             
             prompt = f"""
-Based on this comprehensive token analysis, generate strategic recommendations for exchange listing preparation.
+Based on this token analysis, generate SHORT, CRISP, and ACTIONABLE recommendations for exchange listing.
 
-TOKEN: {token_info.get("asset_name", "Unknown")}
-CURRENT GRADE: {score.grade} ({score.total_score}/100)
+TOKEN: {token_info.get("asset_name", "Unknown")} | GRADE: {score.grade} ({score.total_score}/100)
 
-SCORE BREAKDOWN:
-- Liquidity: {score.liquidity_score}/100
-- Holder Distribution: {score.holder_distribution_score}/100  
-- Metadata: {score.metadata_score}/100
-- Security: {score.security_score}/100
-- Market Activity: {score.market_activity_score}/100
+SCORES: Liquidity {score.liquidity_score} | Holders {score.holder_distribution_score} | Metadata {score.metadata_score} | Security {score.security_score}
 
-CURRENT METRICS:
-- Holders: {metrics.holder_count}
-- Liquidity: ${metrics.liquidity_usd:,.0f}
-- Volume 24h: ${metrics.volume_24h:,.0f}
-- Top 10 concentration: {metrics.top_10_concentration}%
+METRICS: {metrics.holder_count} holders | {"$" + f"{metrics.liquidity_usd:,.0f}" if metrics.liquidity_usd is not None else "N/A"} liquidity | {metrics.top_10_concentration}% top 10 concentration
 
-Generate 5-8 prioritized recommendations in this JSON format:
+CRITICAL RULES:
+1. Each recommendation must be MAX 120 characters (1-2 sentences)
+2. Be SPECIFIC and ACTIONABLE (not generic advice)
+3. Use imperative verbs (Audit, Deploy, Increase, Launch, etc.)
+4. NO verbose explanations or background context
+5. Generate 5 recommendations ONLY
+
+JSON FORMAT:
 {{
     "recommendations": [
         {{
-            "category": "<category>",
-            "priority": "<high/medium/low>", 
-            "issue": "<specific problem identified>",
-            "recommendation": "<detailed actionable advice>",
-            "estimated_impact": "<expected score improvement>",
-            "implementation_timeline": "<timeframe estimate>",
-            "success_metrics": "<how to measure progress>"
+            "category": "<Metadata|Security|Liquidity|Marketing|Compliance>",
+            "priority": "<high|medium|low>", 
+            "issue": "<10 words max>",
+            "recommendation": "<MAX 120 chars - crisp action>",
+            "estimated_impact": "<+X points or X% improvement>"
         }}
     ]
 }}
 
-Focus on practical, achievable actions that will have measurable impact on exchange listing prospects.
+EXAMPLES OF GOOD RECOMMENDATIONS (short & actionable):
+- "Audit metadata completeness: add logo, whitepaper, social links, and tokenomics to all platforms"
+- "Commission Tier-1 security audit (CertiK/Halborn) and publish full report within 30 days"
+- "Deploy $50K liquidity to top DEXs with 2-3 month lock to stabilize trading pairs"
+- "Launch community campaign: weekly AMAs, contests, and influencer partnerships for 60 days"
+- "Register on CoinMarketCap and CoinGecko with verified profile and complete metadata"
+
+BAD EXAMPLES (too verbose):
+- "Conduct a comprehensive audit of all token metadata across blockchain explorers, official websites, and community platforms. Ensure consistency and completeness for: high-resolution logo and branding assets, detailed project description and use cases..."
+
+Generate recommendations NOW:
 """
             
-            response = self.llm_model.generate_content(prompt)
+            response = self.llm_client.chat.completions.create(
+                model=self.llm_model,
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.4,
+                response_format={"type": "json_object"}
+            )
             
-            ai_recs = json.loads(response.text)
+            # Extract JSON from response text (handle markdown code blocks)
+            response_text = response.choices[0].message.content.strip()
+            if "```json" in response_text:
+                response_text = response_text.split("```json")[1].split("```")[0].strip()
+            elif "```" in response_text:
+                response_text = response_text.split("```")[1].split("```")[0].strip()
+            
+            ai_recs = json.loads(response_text)
             
             # Convert to Recommendation objects
             recommendations = []

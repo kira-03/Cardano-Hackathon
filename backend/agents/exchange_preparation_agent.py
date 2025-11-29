@@ -2,7 +2,7 @@
 Exchange Preparation Agent - AI-powered CEX requirements analysis and listing document generation
 """
 from typing import Dict, Any, List
-import google.generativeai as genai
+from openai import OpenAI
 import json
 import logging
 import os
@@ -16,25 +16,19 @@ class ExchangePreparationAgent:
         self.name = "AI Exchange Preparation Agent"
         self.cardano_service = cardano_service
         
-        # Initialize Gemini AI client
+        # Initialize OpenAI client
         try:
-            if settings.gemini_api_key and settings.use_ai_analysis:
-                # Configure Gemini
-                genai.configure(api_key=settings.gemini_api_key)
-                self.llm_model = genai.GenerativeModel('models/gemini-2.5-flash')
+            api_key = settings.openai_api_key or os.getenv('OPENAI_API_KEY')
+            if api_key and settings.use_ai_analysis:
+                self.llm_client = OpenAI(api_key=api_key)
+                self.llm_model = "gpt-4o-mini"
                 self.use_llm = True
-                logger.info("✅ Gemini AI client initialized successfully")
-            elif os.getenv('GEMINI_API_KEY') and settings.use_ai_analysis:
-                # Fallback to environment variable
-                genai.configure(api_key=os.getenv('GEMINI_API_KEY'))
-                self.llm_model = genai.GenerativeModel('models/gemini-2.5-flash')
-                self.use_llm = True
-                logger.info("✅ Gemini AI client initialized from environment")
+                logger.info("✅ OpenAI client initialized successfully")
             else:
                 raise Exception("No API key available or AI analysis disabled")
         except Exception as e:
-            logger.warning(f"⚠️ Gemini AI client not available: {e}. Using algorithmic analysis.")
-            self.llm_model = None
+            logger.warning(f"⚠️ OpenAI client not available: {e}. Using algorithmic analysis.")
+            self.llm_client = None
             self.use_llm = False
         
         # Public CEX listing requirements (based on industry standards)
@@ -179,7 +173,7 @@ class ExchangePreparationAgent:
 You are an expert cryptocurrency exchange listing analyst. Analyze this Cardano token and provide a comprehensive readiness score.
 
 TOKEN DATA:
-{json.dumps(analysis_data, indent=2)}
+{json.dumps(analysis_data, indent=2, default=str)}
 
 ANALYSIS CRITERIA:
 1. Liquidity Depth (30% weight): Current liquidity vs industry standards
@@ -207,9 +201,21 @@ PROVIDE RESPONSE IN THIS EXACT JSON FORMAT:
 Be thorough and provide actionable insights based on real market standards.
 """
             
-            response = self.llm_model.generate_content(prompt)
+            response = self.llm_client.chat.completions.create(
+                model=self.llm_model,
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.3,
+                response_format={"type": "json_object"}
+            )
             
-            ai_analysis = json.loads(response.text)
+            # Extract JSON from response text (handle markdown code blocks)
+            response_text = response.choices[0].message.content.strip()
+            if "```json" in response_text:
+                response_text = response_text.split("```json")[1].split("```")[0].strip()
+            elif "```" in response_text:
+                response_text = response_text.split("```")[1].split("```")[0].strip()
+            
+            ai_analysis = json.loads(response_text)
             
             # Create enhanced score object
             class AIScore:
@@ -245,13 +251,23 @@ Be thorough and provide actionable insights based on real market standards.
         reqs = self.exchange_requirements[exchange]
         requirements = []
         
+        # Check if market data is available
+        market_data_available = getattr(metrics, 'market_data_available', True)
+        liquidity = metrics.liquidity_usd if metrics.liquidity_usd is not None else 0
+        volume = metrics.volume_24h if metrics.volume_24h is not None else 0
+        
         # Liquidity requirement
-        meets_liquidity = metrics.liquidity_usd >= reqs["min_liquidity"]
+        if market_data_available:
+            meets_liquidity = liquidity >= reqs["min_liquidity"]
+            liquidity_status = f"Current: ${liquidity:,.0f}"
+        else:
+            meets_liquidity = None  # Unknown - requires DEX API integration
+            liquidity_status = "N/A (requires DEX API integration)"
         requirements.append(ExchangeRequirement(
             exchange=exchange,
             requirement=f"Minimum liquidity: ${reqs['min_liquidity']:,}",
-            current_status=f"Current: ${metrics.liquidity_usd:,.0f}",
-            meets_requirement=meets_liquidity
+            current_status=liquidity_status,
+            meets_requirement=meets_liquidity if meets_liquidity is not None else False
         ))
         
         # Holder requirement
@@ -264,12 +280,17 @@ Be thorough and provide actionable insights based on real market standards.
         ))
         
         # Volume requirement
-        meets_volume = metrics.volume_24h >= reqs["min_volume_24h"]
+        if market_data_available:
+            meets_volume = volume >= reqs["min_volume_24h"]
+            volume_status = f"Current: ${volume:,.0f}"
+        else:
+            meets_volume = None  # Unknown - requires DEX API integration
+            volume_status = "N/A (requires DEX API integration)"
         requirements.append(ExchangeRequirement(
             exchange=exchange,
             requirement=f"Minimum 24h volume: ${reqs['min_volume_24h']:,}",
-            current_status=f"Current: ${metrics.volume_24h:,.0f}",
-            meets_requirement=meets_volume
+            current_status=volume_status,
+            meets_requirement=meets_volume if meets_volume is not None else False
         ))
         
         # Metadata requirement
@@ -330,8 +351,8 @@ Be thorough and provide actionable insights based on real market standards.
             "metrics": {
                 "total_supply": metrics.total_supply,
                 "holders": metrics.holder_count,
-                "liquidity": f"${metrics.liquidity_usd:,.0f}",
-                "volume_24h": f"${metrics.volume_24h:,.0f}",
+                "liquidity": f"${metrics.liquidity_usd:,.0f}" if metrics.liquidity_usd is not None else "N/A (requires DEX API)",
+                "volume_24h": f"${metrics.volume_24h:,.0f}" if metrics.volume_24h is not None else "N/A (requires DEX API)",
                 "top_10_concentration": f"{metrics.top_10_concentration}%"
             },
             "readiness_score": {
@@ -370,7 +391,7 @@ Be thorough and provide actionable insights based on real market standards.
 Create a compelling 2-3 sentence Unique Value Proposition for this Cardano token based on its metadata.
 
 METADATA:
-{json.dumps(metadata, indent=2)}
+{json.dumps(metadata, indent=2, default=str)}
 
 Requirements:
 - Professional and exchange-ready tone
@@ -382,9 +403,13 @@ Requirements:
 Return only the UVP text, no additional formatting.
 """
             
-            response = self.llm_model.generate_content(prompt)
+            response = self.llm_client.chat.completions.create(
+                model=self.llm_model,
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.5
+            )
             
-            uvp = response.text.strip()
+            uvp = response.choices[0].message.content.strip()
             logger.info("✅ AI UVP generated successfully")
             return uvp
             
@@ -416,14 +441,17 @@ Return only the UVP text, no additional formatting.
         try:
             logger.info("🤖 AI analyzing market potential...")
             
+            liquidity_str = f"${metrics.liquidity_usd:,.0f}" if metrics.liquidity_usd is not None else "N/A (requires DEX API)"
+            volume_str = f"${metrics.volume_24h:,.0f}" if metrics.volume_24h is not None else "N/A (requires DEX API)"
+            
             prompt = f"""
 As a crypto market analyst, assess the market potential for this Cardano token.
 
 METRICS:
 - Total Score: {score.total_score}/100 (Grade: {score.grade})
 - Holder Count: {metrics.holder_count}
-- Liquidity: ${metrics.liquidity_usd:,.0f}
-- 24h Volume: ${metrics.volume_24h:,.0f}
+- Liquidity: {liquidity_str}
+- 24h Volume: {volume_str}
 - Top 10 Concentration: {metrics.top_10_concentration}%
 - Metadata Score: {metrics.metadata_score}/100
 
@@ -437,9 +465,13 @@ Consider:
 Provide a concise 1-2 sentence market potential assessment that would be suitable for an exchange listing proposal.
 """
             
-            response = self.llm_model.generate_content(prompt)
+            response = self.llm_client.chat.completions.create(
+                model=self.llm_model,
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.4
+            )
             
-            assessment = response.text.strip()
+            assessment = response.choices[0].message.content.strip()
             logger.info("✅ AI market assessment completed")
             return assessment
             
@@ -494,9 +526,13 @@ REQUIREMENT: {requirement}
 Provide a specific, actionable recommendation (1-2 sentences) that the project team can implement to address this requirement. Focus on practical, achievable steps.
 """
             
-            response = self.llm_model.generate_content(prompt)
+            response = self.llm_client.chat.completions.create(
+                model=self.llm_model,
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.4
+            )
             
-            return response.text.strip()
+            return response.choices[0].message.content.strip()
             
         except Exception as e:
             logger.error(f"❌ AI action suggestion failed: {e}")
@@ -512,10 +548,10 @@ Provide a specific, actionable recommendation (1-2 sentences) that the project t
         
         # Check each exchange
         for exchange, reqs in self.exchange_requirements.items():
-            # Calculate match score
-            liquidity_match = metrics.liquidity_usd / reqs["min_liquidity"]
-            holder_match = metrics.holder_count / reqs["min_holders"]
-            volume_match = metrics.volume_24h / reqs["min_volume_24h"]
+            # Calculate match score (handle None values with default 0)
+            liquidity_match = (metrics.liquidity_usd or 0) / reqs["min_liquidity"]
+            holder_match = (metrics.holder_count or 0) / reqs["min_holders"]
+            volume_match = (metrics.volume_24h or 0) / reqs["min_volume_24h"]
             
             avg_match = (liquidity_match + holder_match + volume_match) / 3
             

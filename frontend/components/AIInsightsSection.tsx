@@ -1,6 +1,8 @@
 'use client'
 
 import { useState } from 'react'
+// Removed AISymbol import
+import { motion } from 'framer-motion'
 
 interface AIInsightsSectionProps {
   readinessScore: any
@@ -8,334 +10,257 @@ interface AIInsightsSectionProps {
   executiveSummary: string
 }
 
-export default function AIInsightsSection({ 
-  readinessScore, 
+export default function AIInsightsSection({
+  readinessScore,
   recommendations,
-  executiveSummary 
+  executiveSummary
 }: AIInsightsSectionProps) {
   const [expandedInsight, setExpandedInsight] = useState<string | null>('overview')
-
-  // Check if AI-generated insights are available
-  const hasAIAnalysis = readinessScore?.ai_analysis || false
-  const hasAIRecommendations = recommendations?.some((rec: any) => 
-    rec.implementation_timeline || rec.success_metrics
-  )
 
   const insights = [
     {
       id: 'overview',
-      title: '🤖 AI Analysis Overview',
-      icon: '🧠',
-      badge: 'Gemini AI',
+      title: 'ANALYSIS OVERVIEW',
+      icon: '📊',
       content: executiveSummary,
       highlight: true
     },
     {
       id: 'liquidity',
-      title: 'Liquidity Assessment',
-      icon: '💰',
-      badge: 'AI Powered',
-      content: readinessScore?.ai_analysis?.liquidity_assessment || 
-        `Current liquidity score: ${readinessScore?.liquidity_score}/100. ${
-          readinessScore?.liquidity_score >= 70 
-            ? 'Strong liquidity depth supporting market stability and exchange requirements.' 
-            : readinessScore?.liquidity_score >= 50
+      title: 'LIQUIDITY ASSESSMENT',
+      icon: '💧',
+      content: readinessScore?.ai_analysis?.liquidity_assessment ||
+        `Liquidity score: ${readinessScore?.liquidity_score}/100. ${readinessScore?.liquidity_score >= 70
+          ? 'Strong liquidity depth supporting market stability and exchange requirements.'
+          : readinessScore?.liquidity_score >= 50
             ? 'Moderate liquidity requiring enhancement for top-tier exchange listings.'
             : 'Limited liquidity depth - priority improvement area for exchange readiness.'
         }`
     },
     {
       id: 'decentralization',
-      title: 'Decentralization Review',
+      title: 'HOLDER DISTRIBUTION',
       icon: '👥',
-      badge: 'AI Powered',
       content: readinessScore?.ai_analysis?.decentralization_review ||
-        `Holder distribution score: ${readinessScore?.holder_distribution_score}/100. ${
-          readinessScore?.holder_distribution_score >= 70
-            ? 'Well-distributed token ownership with minimal whale concentration risk.'
-            : readinessScore?.holder_distribution_score >= 50
+        `Distribution score: ${readinessScore?.holder_distribution_score}/100. ${readinessScore?.holder_distribution_score >= 70
+          ? 'Well-distributed token ownership with minimal whale concentration risk.'
+          : readinessScore?.holder_distribution_score >= 50
             ? 'Moderate token concentration - consider distribution improvement strategies.'
             : 'High whale concentration detected - implement distribution enhancement programs.'
         }`
     },
     {
       id: 'metadata',
-      title: 'Metadata Evaluation',
+      title: 'METADATA QUALITY',
       icon: '📝',
-      badge: 'AI Powered',
       content: readinessScore?.ai_analysis?.metadata_evaluation ||
-        `Metadata quality score: ${readinessScore?.metadata_score}/100. ${
-          readinessScore?.metadata_score >= 80
-            ? 'Complete and professional token metadata meets exchange standards.'
-            : readinessScore?.metadata_score >= 60
+        `Metadata score: ${readinessScore?.metadata_score}/100. ${readinessScore?.metadata_score >= 80
+          ? 'Complete and professional token metadata meets exchange standards.'
+          : readinessScore?.metadata_score >= 60
             ? 'Metadata partially complete - add missing fields for optimal presentation.'
             : 'Metadata requires significant enhancement with branding and informational content.'
         }`
     },
     {
       id: 'security',
-      title: 'Security Analysis',
+      title: 'SECURITY PROFILE',
       icon: '🔒',
-      badge: 'AI Powered',
       content: readinessScore?.ai_analysis?.security_analysis ||
-        `Security score: ${readinessScore?.security_score}/100. ${
-          readinessScore?.security_score >= 80
-            ? 'Strong security profile with low risk factors identified.'
-            : readinessScore?.security_score >= 60
+        `Security score: ${readinessScore?.security_score}/100. ${readinessScore?.security_score >= 80
+          ? 'Strong security profile with low risk factors identified.'
+          : readinessScore?.security_score >= 60
             ? 'Acceptable security with room for audit and verification improvements.'
             : 'Security concerns detected - consider professional audit services.'
         }`
     },
     {
       id: 'market',
-      title: 'Market Dynamics',
-      icon: '📊',
-      badge: 'AI Powered',
+      title: 'MARKET DYNAMICS',
+      icon: '📈',
       content: readinessScore?.ai_analysis?.market_dynamics ||
-        `Market activity score: ${readinessScore?.market_activity_score}/100. ${
-          readinessScore?.market_activity_score >= 70
-            ? 'Healthy trading patterns with strong volume-to-liquidity ratios.'
-            : readinessScore?.market_activity_score >= 40
+        `Market activity score: ${readinessScore?.market_activity_score}/100. ${readinessScore?.market_activity_score >= 70
+          ? 'Healthy trading patterns with strong volume-to-liquidity ratios.'
+          : readinessScore?.market_activity_score >= 40
             ? 'Moderate market activity - enhance through partnerships and market making.'
             : 'Low trading activity - implement strategies to boost market engagement.'
-        }`
-    },
-    {
-      id: 'growth',
-      title: 'Growth Outlook',
-      icon: '📈',
-      badge: 'AI Powered',
-      content: readinessScore?.ai_analysis?.growth_outlook ||
-        `Overall grade: ${readinessScore?.grade}. ${
-          readinessScore?.grade === 'A'
-            ? 'Exceptional fundamentals with strong exchange listing potential and growth trajectory.'
-            : readinessScore?.grade === 'B'
-            ? 'Solid foundation with good growth prospects - minor optimizations recommended.'
-            : readinessScore?.grade === 'C'
-            ? 'Developing potential requiring strategic improvements in key areas.'
-            : readinessScore?.grade === 'D'
-            ? 'Early-stage token needing significant enhancement before exchange consideration.'
-            : 'Requires comprehensive improvement across multiple dimensions for market viability.'
         }`
     }
   ]
 
-  // Extract AI-specific insights
   const criticalInsights = readinessScore?.critical_insights || []
   const exchangeReadiness = readinessScore?.exchange_readiness_factors || {}
 
   return (
     <div className="space-y-6">
       {/* AI Badge Header */}
-      <div className="bg-gradient-to-r from-purple-50 to-blue-50 border-2 border-purple-200 rounded-lg p-6">
-        <div className="flex items-center gap-3 mb-4">
-          <div className="w-12 h-12 bg-gradient-to-br from-purple-600 to-blue-600 rounded-xl flex items-center justify-center shadow-lg">
-            <span className="text-2xl">🤖</span>
+      <motion.div
+        initial={{ opacity: 0, y: -10 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="bg-gradient-to-br from-purple-900/50 to-blue-900/50 border-4 border-purple-500 p-6"
+      >
+        <div className="flex items-center gap-4 mb-6">
+          <div className="w-16 h-16 bg-purple-600 border-4 border-purple-400 flex items-center justify-center">
+            <span className="text-4xl">👾</span>
           </div>
           <div>
-            <h2 className="text-xl font-bold text-slate-900">AI-Powered Analysis</h2>
-            <p className="text-sm text-slate-600">Generated by Google Gemini 2.5 Flash</p>
-          </div>
-          <div className="ml-auto">
-            <span className="px-3 py-1 bg-green-500 text-white text-xs font-bold rounded-full flex items-center gap-1">
-              <span className="w-2 h-2 bg-white rounded-full animate-pulse"></span>
-              AI ACTIVE
-            </span>
+            <h2 className="font-press-start text-lg text-white mb-2">INTELLIGENT ANALYSIS</h2>
+            <p className="font-vt323 text-xl text-purple-300">POWERED BY OPENAI</p>
           </div>
         </div>
-        
+
         {/* AI Capabilities */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          <div className="bg-white rounded-lg p-3 text-center border border-purple-100">
-            <div className="text-2xl mb-1">🧠</div>
-            <div className="text-xs font-semibold text-slate-700">Smart Scoring</div>
-          </div>
-          <div className="bg-white rounded-lg p-3 text-center border border-purple-100">
-            <div className="text-2xl mb-1">💡</div>
-            <div className="text-xs font-semibold text-slate-700">Recommendations</div>
-          </div>
-          <div className="bg-white rounded-lg p-3 text-center border border-purple-100">
-            <div className="text-2xl mb-1">🎯</div>
-            <div className="text-xs font-semibold text-slate-700">Risk Analysis</div>
-          </div>
-          <div className="bg-white rounded-lg p-3 text-center border border-purple-100">
-            <div className="text-2xl mb-1">📈</div>
-            <div className="text-xs font-semibold text-slate-700">Growth Insights</div>
-          </div>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          {[
+            { label: 'SCORING', icon: '📊' },
+            { label: 'INSIGHTS', icon: '💡' },
+            { label: 'RISK ANALYSIS', icon: '⚠️' },
+            { label: 'FORECASTING', icon: '🔮' }
+          ].map((capability) => (
+            <div key={capability.label} className="bg-purple-800/50 border-2 border-purple-600 py-3 px-2 text-center">
+              <div className="text-2xl mb-1">{capability.icon}</div>
+              <div className="font-press-start text-[10px] text-purple-200">{capability.label}</div>
+            </div>
+          ))}
         </div>
-      </div>
+      </motion.div>
 
       {/* Critical AI Insights */}
       {criticalInsights.length > 0 && (
-        <div className="bg-amber-50 border-l-4 border-amber-500 rounded-lg p-5">
-          <h3 className="font-bold text-slate-900 mb-3 flex items-center gap-2">
-            <span>⚡</span>
-            Critical AI Insights
+        <motion.div
+          initial={{ opacity: 0, x: -20 }}
+          animate={{ opacity: 1, x: 0 }}
+          className="bg-yellow-900/50 border-4 border-yellow-500 p-6"
+        >
+          <h3 className="font-press-start text-sm text-yellow-400 mb-4 flex items-center gap-3">
+            <span className="text-2xl">⚠️</span>
+            KEY FINDINGS
           </h3>
-          <ul className="space-y-2">
+          <ul className="space-y-3">
             {criticalInsights.map((insight: string, index: number) => (
-              <li key={index} className="flex items-start gap-2 text-sm text-slate-700">
-                <span className="text-amber-600 font-bold">•</span>
+              <li key={index} className="flex items-start gap-3 font-vt323 text-lg text-yellow-200">
+                <span className="text-yellow-400 text-2xl">▸</span>
                 <span>{insight}</span>
               </li>
             ))}
           </ul>
-        </div>
+        </motion.div>
       )}
 
       {/* Exchange Readiness Factors */}
-      {(exchangeReadiness.immediate_strengths?.length > 0 || 
+      {(exchangeReadiness.immediate_strengths?.length > 0 ||
         exchangeReadiness.improvement_needed?.length > 0 ||
         exchangeReadiness.risk_factors?.length > 0) && (
-        <div className="grid md:grid-cols-3 gap-4">
-          {/* Strengths */}
-          {exchangeReadiness.immediate_strengths?.length > 0 && (
-            <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-              <h4 className="font-semibold text-green-900 mb-2 flex items-center gap-2">
-                <span>✅</span>
-                Immediate Strengths
-              </h4>
-              <ul className="space-y-1">
-                {exchangeReadiness.immediate_strengths.map((strength: string, index: number) => (
-                  <li key={index} className="text-sm text-green-800">• {strength}</li>
-                ))}
-              </ul>
-            </div>
-          )}
+          <div className="grid sm:grid-cols-3 gap-4">
+            {exchangeReadiness.immediate_strengths?.length > 0 && (
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="bg-green-900/50 border-4 border-green-500 p-5"
+              >
+                <h4 className="font-press-start text-xs text-green-400 mb-4 flex items-center gap-2">
+                  <span className="text-xl">✓</span>
+                  STRENGTHS
+                </h4>
+                <ul className="space-y-2">
+                  {exchangeReadiness.immediate_strengths.map((strength: string, index: number) => (
+                    <li key={index} className="font-vt323 text-base text-green-200 flex items-start gap-2">
+                      <span className="text-green-400">•</span>
+                      {strength}
+                    </li>
+                  ))}
+                </ul>
+              </motion.div>
+            )}
 
-          {/* Improvements Needed */}
-          {exchangeReadiness.improvement_needed?.length > 0 && (
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-              <h4 className="font-semibold text-blue-900 mb-2 flex items-center gap-2">
-                <span>🔧</span>
-                Improvement Needed
-              </h4>
-              <ul className="space-y-1">
-                {exchangeReadiness.improvement_needed.map((improvement: string, index: number) => (
-                  <li key={index} className="text-sm text-blue-800">• {improvement}</li>
-                ))}
-              </ul>
-            </div>
-          )}
+            {exchangeReadiness.improvement_needed?.length > 0 && (
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.1 }}
+                className="bg-blue-900/50 border-4 border-blue-500 p-5"
+              >
+                <h4 className="font-press-start text-xs text-blue-400 mb-4 flex items-center gap-2">
+                  <span className="text-xl">⚡</span>
+                  IMPROVEMENTS
+                </h4>
+                <ul className="space-y-2">
+                  {exchangeReadiness.improvement_needed.map((improvement: string, index: number) => (
+                    <li key={index} className="font-vt323 text-base text-blue-200 flex items-start gap-2">
+                      <span className="text-blue-400">•</span>
+                      {improvement}
+                    </li>
+                  ))}
+                </ul>
+              </motion.div>
+            )}
 
-          {/* Risk Factors */}
-          {exchangeReadiness.risk_factors?.length > 0 && (
-            <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-              <h4 className="font-semibold text-red-900 mb-2 flex items-center gap-2">
-                <span>⚠️</span>
-                Risk Factors
-              </h4>
-              <ul className="space-y-1">
-                {exchangeReadiness.risk_factors.map((risk: string, index: number) => (
-                  <li key={index} className="text-sm text-red-800">• {risk}</li>
-                ))}
-              </ul>
-            </div>
-          )}
-        </div>
-      )}
+            {exchangeReadiness.risk_factors?.length > 0 && (
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.2 }}
+                className="bg-red-900/50 border-4 border-red-500 p-5"
+              >
+                <h4 className="font-press-start text-xs text-red-400 mb-4 flex items-center gap-2">
+                  <span className="text-xl">⚠</span>
+                  RISK FACTORS
+                </h4>
+                <ul className="space-y-2">
+                  {exchangeReadiness.risk_factors.map((risk: string, index: number) => (
+                    <li key={index} className="font-vt323 text-base text-red-200 flex items-start gap-2">
+                      <span className="text-red-400">•</span>
+                      {risk}
+                    </li>
+                  ))}
+                </ul>
+              </motion.div>
+            )}
+          </div>
+        )}
 
       {/* Detailed AI Insights */}
       <div className="space-y-3">
-        {insights.map((insight) => (
-          <div 
+        {insights.map((insight, index) => (
+          <motion.div
             key={insight.id}
-            className={`border rounded-lg overflow-hidden transition-all ${
-              insight.highlight 
-                ? 'border-purple-300 bg-gradient-to-r from-purple-50 to-blue-50' 
-                : 'border-slate-200 bg-white'
-            }`}
+            initial={{ opacity: 0, x: -20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: index * 0.1 }}
+            className={`bg-slate-900/50 border-4 ${insight.highlight
+                ? 'border-blue-500'
+                : 'border-slate-700'
+              } overflow-hidden`}
           >
             <button
               onClick={() => setExpandedInsight(
                 expandedInsight === insight.id ? null : insight.id
               )}
-              className="w-full px-5 py-4 flex items-center justify-between hover:bg-slate-50 transition-colors"
+              className="w-full px-6 py-4 flex items-center justify-between hover:bg-slate-800/50 transition-colors border-b-4 border-slate-700"
             >
-              <div className="flex items-center gap-3">
-                <span className="text-2xl">{insight.icon}</span>
-                <div className="text-left">
-                  <h3 className="font-semibold text-slate-900">{insight.title}</h3>
-                  {insight.badge && (
-                    <span className="text-xs text-purple-600 font-medium">{insight.badge}</span>
-                  )}
-                </div>
+              <div className="flex items-center gap-4">
+                <span className="text-3xl">{insight.icon}</span>
+                <span className="font-press-start text-xs text-white">{insight.title}</span>
               </div>
-              <svg 
-                className={`w-5 h-5 text-slate-400 transition-transform ${
-                  expandedInsight === insight.id ? 'rotate-180' : ''
-                }`}
-                fill="none" 
-                stroke="currentColor" 
-                viewBox="0 0 24 24"
-              >
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-              </svg>
+              <span className={`text-2xl transition-transform ${expandedInsight === insight.id ? 'rotate-180' : ''
+                }`}>
+                ▼
+              </span>
             </button>
-            
+
             {expandedInsight === insight.id && (
-              <div className="px-5 pb-4 pt-2 border-t border-slate-200">
-                <p className="text-sm text-slate-700 leading-relaxed whitespace-pre-line">
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                exit={{ opacity: 0, height: 0 }}
+                className="px-6 py-5 bg-slate-800/30"
+              >
+                <p className="font-vt323 text-xl text-slate-200 leading-relaxed whitespace-pre-line">
                   {insight.content}
                 </p>
-              </div>
+              </motion.div>
             )}
-          </div>
+          </motion.div>
         ))}
-      </div>
-
-      {/* AI Recommendations with Timeline */}
-      {hasAIRecommendations && (
-        <div className="bg-white border border-slate-200 rounded-lg p-6">
-          <h3 className="font-bold text-slate-900 mb-4 flex items-center gap-2">
-            <span>🎯</span>
-            AI Strategic Recommendations
-          </h3>
-          <div className="space-y-4">
-            {recommendations
-              .filter((rec: any) => rec.implementation_timeline || rec.success_metrics)
-              .map((rec: any, index: number) => (
-                <div key={index} className="border-l-4 border-blue-500 pl-4 py-2">
-                  <div className="flex items-start justify-between mb-2">
-                    <div>
-                      <span className={`text-xs font-bold px-2 py-1 rounded ${
-                        rec.priority === 'high' 
-                          ? 'bg-red-100 text-red-700' 
-                          : rec.priority === 'medium'
-                          ? 'bg-yellow-100 text-yellow-700'
-                          : 'bg-green-100 text-green-700'
-                      }`}>
-                        {rec.priority?.toUpperCase()}
-                      </span>
-                      <span className="ml-2 text-xs text-slate-500">{rec.category}</span>
-                    </div>
-                  </div>
-                  <p className="text-sm font-semibold text-slate-900 mb-1">{rec.recommendation}</p>
-                  
-                  {rec.implementation_timeline && (
-                    <p className="text-xs text-slate-600 mt-2">
-                      <span className="font-semibold">⏱️ Timeline:</span> {rec.implementation_timeline}
-                    </p>
-                  )}
-                  
-                  {rec.success_metrics && (
-                    <p className="text-xs text-slate-600 mt-1">
-                      <span className="font-semibold">📊 Success Metrics:</span> {rec.success_metrics}
-                    </p>
-                  )}
-                  
-                  <p className="text-xs text-blue-600 mt-2">
-                    <span className="font-semibold">💫 Impact:</span> {rec.estimated_impact}
-                  </p>
-                </div>
-              ))}
-          </div>
-        </div>
-      )}
-
-      {/* AI Footer Note */}
-      <div className="text-center text-xs text-slate-500 italic">
-        💡 Analysis generated by Google Gemini AI • Real-time insights based on blockchain data
       </div>
     </div>
   )

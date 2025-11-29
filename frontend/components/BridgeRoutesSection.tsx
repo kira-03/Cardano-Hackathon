@@ -1,3 +1,5 @@
+import { motion } from 'framer-motion'
+
 interface BridgeRoute {
   source_chain: string
   target_chain: string
@@ -16,23 +18,31 @@ interface BridgeRoutesSectionProps {
 }
 
 export default function BridgeRoutesSection({ routes, recommendedChain }: BridgeRoutesSectionProps) {
-  const getTrustModelBadge = (model: string) => {
-    const styles = {
-      trustless: 'bg-green-100 text-green-800 border-green-200',
-      hybrid: 'bg-blue-100 text-blue-800 border-blue-200',
-      custodial: 'bg-yellow-100 text-yellow-800 border-yellow-200'
+  const getTrustModelStyles = (model: string) => {
+    const styles: Record<string, { bg: string; border: string }> = {
+      trustless: { bg: 'bg-green-600', border: 'border-green-400' },
+      hybrid: { bg: 'bg-blue-600', border: 'border-blue-400' },
+      custodial: { bg: 'bg-yellow-600', border: 'border-yellow-400' }
     }
-    return styles[model as keyof typeof styles] || styles.hybrid
+    return styles[model.toLowerCase()] || styles.hybrid
   }
 
   const getScoreColor = (score: number) => {
-    if (score >= 80) return 'text-green-600'
-    if (score >= 60) return 'text-blue-600'
-    if (score >= 40) return 'text-yellow-600'
-    return 'text-red-600'
+    if (score >= 80) return { bg: 'bg-green-600', border: 'border-green-400' }
+    if (score >= 60) return { bg: 'bg-blue-600', border: 'border-blue-400' }
+    if (score >= 40) return { bg: 'bg-yellow-600', border: 'border-yellow-400' }
+    return { bg: 'bg-red-600', border: 'border-red-400' }
   }
 
-  // Group by target chain
+  const chainIcons: Record<string, string> = {
+    'Ethereum': '⟠',
+    'BSC': '🟡',
+    'Polygon': '🟣',
+    'Solana': '🌐',
+    'Avalanche': '🔺',
+    'default': '🌉'
+  }
+
   const groupedRoutes = routes.reduce((acc, route) => {
     if (!acc[route.target_chain]) {
       acc[route.target_chain] = []
@@ -41,7 +51,6 @@ export default function BridgeRoutesSection({ routes, recommendedChain }: Bridge
     return acc
   }, {} as Record<string, BridgeRoute[]>)
 
-  // Sort routes by recommendation score
   Object.keys(groupedRoutes).forEach(chain => {
     groupedRoutes[chain].sort((a, b) => b.recommendation_score - a.recommendation_score)
   })
@@ -49,85 +58,119 @@ export default function BridgeRoutesSection({ routes, recommendedChain }: Bridge
   return (
     <div>
       <div className="mb-6">
-        <h3 className="text-xl font-bold text-gray-900 mb-2">Cross-Chain Bridge Routes</h3>
+        <h3 className="font-press-start text-lg text-white mb-6 flex items-center gap-3">
+          <span className="text-2xl">🌉</span>
+          CROSS-CHAIN BRIDGE ROUTES
+        </h3>
         {recommendedChain && (
-          <div className="bg-cardano-blue bg-opacity-10 border-2 border-cardano-blue rounded-lg p-4">
-            <div className="flex items-center">
-              <span className="text-2xl mr-3">🌟</span>
-              <div>
-                <p className="font-semibold text-cardano-blue">Recommended Chain</p>
-                <p className="text-gray-700 text-sm">
-                  <strong>{recommendedChain}</strong> offers the best balance for your cross-chain expansion
-                </p>
-              </div>
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="flex items-center gap-4 p-5 bg-blue-900/50 border-4 border-blue-500"
+          >
+            <div className="w-14 h-14 bg-blue-600 border-4 border-blue-400 flex items-center justify-center">
+              <span className="text-3xl">⭐</span>
             </div>
-          </div>
+            <div>
+              <p className="font-press-start text-xs text-blue-400 mb-1">RECOMMENDED CHAIN</p>
+              <p className="font-vt323 text-xl text-blue-200">
+                <span className="text-white font-bold">{recommendedChain}</span> OFFERS THE BEST BALANCE FOR CROSS-CHAIN EXPANSION
+              </p>
+            </div>
+          </motion.div>
         )}
       </div>
 
-      <div className="space-y-6">
-        {Object.entries(groupedRoutes).map(([chain, chainRoutes]) => (
-          <div key={chain} className="bg-white border border-gray-200 rounded-lg overflow-hidden">
+      <div className="space-y-5">
+        {Object.entries(groupedRoutes).map(([chain, chainRoutes], idx) => (
+          <motion.div
+            key={chain}
+            initial={{ opacity: 0, x: -20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: idx * 0.1 }}
+            className={`bg-slate-900/50 border-4 ${chain === recommendedChain ? 'border-blue-500' : 'border-slate-700'
+              }`}
+          >
             {/* Chain Header */}
-            <div className={`px-6 py-4 ${chain === recommendedChain ? 'bg-cardano-blue text-white' : 'bg-gray-50'}`}>
+            <div className={`px-6 py-4 border-b-4 ${chain === recommendedChain
+                ? 'bg-blue-900/50 border-blue-700'
+                : 'bg-slate-800/50 border-slate-700'
+              }`}>
               <div className="flex items-center justify-between">
-                <h4 className="text-lg font-semibold flex items-center">
-                  {chain === recommendedChain && <span className="mr-2">⭐</span>}
-                  Cardano → {chain}
-                </h4>
-                <span className={`text-sm ${chain === recommendedChain ? 'text-white opacity-90' : 'text-gray-500'}`}>
-                  {chainRoutes.length} bridge{chainRoutes.length !== 1 ? 's' : ''} available
-                </span>
+                <div className="flex items-center gap-4">
+                  <span className="text-4xl">{chainIcons[chain] || chainIcons.default}</span>
+                  <div>
+                    <h4 className="font-press-start text-sm text-white flex items-center gap-2">
+                      {chain === recommendedChain && <span className="text-yellow-400">★</span>}
+                      CARDANO → {chain.toUpperCase()}
+                    </h4>
+                    <span className="font-vt323 text-lg text-slate-400">
+                      {chainRoutes.length} BRIDGE{chainRoutes.length !== 1 ? 'S' : ''} AVAILABLE
+                    </span>
+                  </div>
+                </div>
               </div>
             </div>
 
             {/* Routes List */}
-            <div className="divide-y divide-gray-200">
-              {chainRoutes.map((route, index) => (
-                <div key={index} className="px-6 py-5 hover:bg-gray-50">
-                  <div className="flex items-start justify-between mb-3">
-                    <div>
-                      <h5 className="text-lg font-semibold text-gray-900">{route.bridge_name}</h5>
-                      <span className={`inline-block mt-1 px-2 py-1 rounded-full text-xs font-medium border ${getTrustModelBadge(route.trust_model)}`}>
-                        {route.trust_model.toUpperCase()}
-                      </span>
-                    </div>
-                    <div className="text-right">
-                      <div className={`text-2xl font-bold ${getScoreColor(route.recommendation_score)}`}>
-                        {route.recommendation_score}
+            <div className="divide-y-2 divide-slate-700">
+              {chainRoutes.map((route, index) => {
+                const scoreColors = getScoreColor(route.recommendation_score)
+                const trustColors = getTrustModelStyles(route.trust_model)
+
+                return (
+                  <motion.div
+                    key={index}
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ delay: 0.3 + index * 0.1 }}
+                    className="p-6 hover:bg-slate-800/30 transition-colors"
+                  >
+                    <div className="flex items-start justify-between mb-5 flex-wrap gap-4">
+                      <div>
+                        <div className="flex items-center gap-3 mb-3">
+                          <h5 className="font-press-start text-sm text-white">{route.bridge_name}</h5>
+                          {index === 0 && chainRoutes.length > 1 && (
+                            <span className="pixel-tag bg-blue-600 border-blue-400 text-white text-xs">
+                              RECOMMENDED
+                            </span>
+                          )}
+                        </div>
+                        <span className={`${trustColors.bg} ${trustColors.border} border-2 px-3 py-1 font-press-start text-xs text-white uppercase inline-block`}>
+                          {route.trust_model}
+                        </span>
                       </div>
-                      <div className="text-xs text-gray-500">Score</div>
+                      <div className={`${scoreColors.bg} ${scoreColors.border} border-4 px-6 py-3 text-center min-w-[5rem]`}>
+                        <div className="font-press-start text-2xl text-white">
+                          {route.recommendation_score}
+                        </div>
+                        <div className="font-vt323 text-sm text-white/80">SCORE</div>
+                      </div>
                     </div>
-                  </div>
 
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                    <div>
-                      <p className="text-gray-500 text-xs mb-1">Estimated Fee</p>
-                      <p className="font-semibold text-gray-900">{route.estimated_fee}</p>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                      <div className="bg-slate-800/50 border-2 border-slate-700 p-4">
+                        <p className="font-press-start text-[10px] text-slate-500 mb-2">FEE</p>
+                        <p className="font-vt323 text-xl text-white">{route.estimated_fee}</p>
+                      </div>
+                      <div className="bg-slate-800/50 border-2 border-slate-700 p-4">
+                        <p className="font-press-start text-[10px] text-slate-500 mb-2">TIME</p>
+                        <p className="font-vt323 text-xl text-white">{route.estimated_time}</p>
+                      </div>
+                      <div className="bg-slate-800/50 border-2 border-slate-700 p-4">
+                        <p className="font-press-start text-[10px] text-slate-500 mb-2">SLIPPAGE</p>
+                        <p className="font-vt323 text-xl text-white">{route.slippage_estimate}</p>
+                      </div>
+                      <div className="bg-slate-800/50 border-2 border-slate-700 p-4">
+                        <p className="font-press-start text-[10px] text-slate-500 mb-2">HOPS</p>
+                        <p className="font-vt323 text-xl text-white">{route.hops}</p>
+                      </div>
                     </div>
-                    <div>
-                      <p className="text-gray-500 text-xs mb-1">Estimated Time</p>
-                      <p className="font-semibold text-gray-900">{route.estimated_time}</p>
-                    </div>
-                    <div>
-                      <p className="text-gray-500 text-xs mb-1">Slippage</p>
-                      <p className="font-semibold text-gray-900">{route.slippage_estimate}</p>
-                    </div>
-                    <div>
-                      <p className="text-gray-500 text-xs mb-1">Hops</p>
-                      <p className="font-semibold text-gray-900">{route.hops}</p>
-                    </div>
-                  </div>
-
-                  {index === 0 && chainRoutes.length > 1 && (
-                    <div className="mt-3 pt-3 border-t border-gray-200">
-                      <span className="text-xs text-green-600 font-medium">✓ Recommended bridge for {chain}</span>
-                    </div>
-                  )}
-                </div>
-              ))}
+                  </motion.div>
+                )
+              })}
             </div>
-          </div>
+          </motion.div>
         ))}
       </div>
     </div>

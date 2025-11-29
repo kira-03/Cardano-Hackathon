@@ -3,13 +3,418 @@
 @tailwind utilities;
 
 @layer base {
+  :root {
+    --neon-green: #00ff41;
+    --neon-pink: #ff00ff;
+    --neon-blue: #00ffff;
+    --neon-orange: #ff6b35;
+    --blockchain-purple: #8b5cf6;
+    --retro-bg: #0a0e1a;
+    --retro-dark: #050505;
+  }
+
   body {
-    @apply antialiased;
+    @apply bg-slate-950 text-slate-200 font-vt323 text-xl;
+    background-color: var(--retro-bg);
+    /* Blockchain grid pattern */
+    background-image:
+      linear-gradient(rgba(139, 92, 246, 0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(139, 92, 246, 0.03) 1px, transparent 1px),
+      linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%),
+      linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
+    background-size: 40px 40px, 40px 40px, 100% 2px, 3px 100%;
+    background-position: 0 0, 0 0, 0 0, 0 0;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    @apply font-press-start uppercase tracking-widest;
+  }
+
+  /* 8-bit Pixel Scrollbar */
+  ::-webkit-scrollbar {
+    width: 16px;
+    height: 16px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: #0f172a;
+    border: 4px solid #1e293b;
+    box-shadow: inset 4px 4px 0px 0px rgba(0, 0, 0, 0.5);
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: linear-gradient(180deg, #8b5cf6 0%, #6d28d9 100%);
+    border: 4px solid #a855f7;
+    box-shadow: 
+      4px 4px 0px 0px rgba(0, 0, 0, 0.5),
+      inset 2px 2px 0px 0px rgba(255, 255, 255, 0.2);
+    position: relative;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: linear-gradient(180deg, #a855f7 0%, #8b5cf6 100%);
+    border-color: #c084fc;
+    box-shadow: 
+      6px 6px 0px 0px rgba(0, 0, 0, 0.6),
+      inset 2px 2px 0px 0px rgba(255, 255, 255, 0.3);
+  }
+
+  ::-webkit-scrollbar-thumb:active {
+    background: linear-gradient(180deg, #6d28d9 0%, #5b21b6 100%);
+    border-color: #8b5cf6;
+  }
+
+  ::-webkit-scrollbar-corner {
+    background: #0f172a;
+    border: 4px solid #1e293b;
+  }
+
+  /* Firefox scrollbar */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: #8b5cf6 #0f172a;
+  }
+}
+
+@layer components {
+
+  /* Blockchain-inspired pixel card */
+  .pixel-card {
+    @apply bg-slate-900 border-4 border-slate-700 relative;
+    box-shadow: 8px 8px 0px 0px rgba(0, 0, 0, 0.5);
+    position: relative;
+  }
+
+  .pixel-card::before {
+    content: '';
+    position: absolute;
+    top: -2px;
+    left: -2px;
+    right: -2px;
+    bottom: -2px;
+    background: linear-gradient(45deg,
+        transparent 30%,
+        rgba(139, 92, 246, 0.1) 50%,
+        transparent 70%);
+    background-size: 200% 200%;
+    animation: blockchain-shimmer 3s ease-in-out infinite;
+    pointer-events: none;
+    z-index: -1;
+  }
+
+  .pixel-card::after {
+    content: '';
+    @apply absolute top-0 left-0 w-full h-full pointer-events-none;
+    box-shadow: inset 0 0 40px rgba(0, 0, 0, 0.5);
+  }
+
+  /* Blockchain hash pattern overlay */
+  .blockchain-hash-bg {
+    background-image:
+      repeating-linear-gradient(0deg,
+        transparent,
+        transparent 2px,
+        rgba(139, 92, 246, 0.05) 2px,
+        rgba(139, 92, 246, 0.05) 4px);
+  }
+
+  /* Pixel button with blockchain accent */
+  .pixel-btn {
+    @apply bg-slate-800 border-2 border-slate-600 text-slate-300 px-4 py-2 font-press-start text-xs uppercase transition-all;
+    box-shadow: 4px 4px 0px 0px rgba(0, 0, 0, 0.3);
+    position: relative;
+    overflow: hidden;
+  }
+
+  .pixel-btn::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(139, 92, 246, 0.3), transparent);
+    transition: left 0.5s;
+  }
+
+  .pixel-btn:hover::before {
+    left: 100%;
+  }
+
+  .pixel-btn:hover {
+    @apply bg-slate-700 border-slate-500;
+    transform: translate(-2px, -2px);
+    box-shadow: 6px 6px 0px 0px rgba(0, 0, 0, 0.4);
+  }
+
+  .pixel-btn:active {
+    transform: translate(2px, 2px);
+    box-shadow: 2px 2px 0px 0px rgba(0, 0, 0, 0.3);
+  }
+
+  .pixel-btn-primary {
+    @apply bg-blue-600 border-blue-400 text-white;
+    box-shadow: 4px 4px 0px 0px #1e3a8a;
+  }
+
+  .pixel-btn-primary:hover {
+    @apply bg-blue-500 border-blue-300;
+    box-shadow: 6px 6px 0px 0px #1e3a8a;
+  }
+
+  .pixel-btn-primary:active {
+    box-shadow: 2px 2px 0px 0px #1e3a8a;
+  }
+
+  /* Blockchain-themed input */
+  .pixel-input {
+    @apply w-full bg-black border-4 border-slate-700 text-white px-4 py-3 font-mono text-base;
+    box-shadow: inset 4px 4px 0px 0px rgba(0, 0, 0, 0.5);
+  }
+
+  .pixel-input:focus {
+    @apply outline-none border-green-500;
+    box-shadow:
+      inset 4px 4px 0px 0px rgba(0, 0, 0, 0.5),
+      0 0 20px rgba(0, 255, 65, 0.3);
+    animation: hash-pulse 2s ease-in-out infinite;
+  }
+
+  .pixel-input::placeholder {
+    @apply text-slate-600;
+  }
+
+  /* Blockchain tag/badge */
+  .pixel-tag {
+    @apply bg-slate-800 border-2 border-slate-600 text-slate-300 px-3 py-1 font-press-start text-xs uppercase inline-block;
+  }
+
+  /* Scanlines effect */
+  .scanlines {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: repeating-linear-gradient(0deg,
+        rgba(0, 0, 0, 0.15),
+        rgba(0, 0, 0, 0.15) 1px,
+        transparent 1px,
+        transparent 2px);
+    pointer-events: none;
+    z-index: 9999;
+  }
+
+  /* Blockchain block visual element */
+  .blockchain-block {
+    position: relative;
+    padding-left: 2rem;
+  }
+
+  .blockchain-block::before {
+    content: '⬢';
+    position: absolute;
+    left: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 1.5rem;
+    color: var(--blockchain-purple);
+    animation: block-pulse 2s ease-in-out infinite;
+  }
+
+  .blockchain-block::after {
+    content: '';
+    position: absolute;
+    left: 0.75rem;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: linear-gradient(to bottom,
+        transparent,
+        var(--blockchain-purple),
+        transparent);
+    opacity: 0.3;
   }
 }
 
 @layer utilities {
-  .text-balance {
-    text-wrap: balance;
+  .font-press-start {
+    font-family: var(--font-press-start);
+  }
+
+  .font-vt323 {
+    font-family: var(--font-vt323);
+  }
+
+  .text-neon-green {
+    color: var(--neon-green);
+    text-shadow: 0 0 10px var(--neon-green);
+  }
+
+  .text-neon-pink {
+    color: var(--neon-pink);
+    text-shadow: 0 0 10px var(--neon-pink);
+  }
+
+  .text-neon-blue {
+    color: var(--neon-blue);
+    text-shadow: 0 0 10px var(--neon-blue);
+  }
+
+  .text-neon-orange {
+    color: var(--neon-orange);
+    text-shadow: 0 0 10px var(--neon-orange);
+  }
+
+  /* Blockchain-themed animations */
+  @keyframes blockchain-shimmer {
+
+    0%,
+    100% {
+      background-position: 0% 0%;
+    }
+
+    50% {
+      background-position: 100% 100%;
+    }
+  }
+
+  @keyframes hash-pulse {
+
+    0%,
+    100% {
+      box-shadow:
+        inset 4px 4px 0px 0px rgba(0, 0, 0, 0.5),
+        0 0 20px rgba(0, 255, 65, 0.3);
+    }
+
+    50% {
+      box-shadow:
+        inset 4px 4px 0px 0px rgba(0, 0, 0, 0.5),
+        0 0 30px rgba(0, 255, 65, 0.5);
+    }
+  }
+
+  @keyframes block-pulse {
+
+    0%,
+    100% {
+      opacity: 0.6;
+      transform: translateY(-50%) scale(1);
+    }
+
+    50% {
+      opacity: 1;
+      transform: translateY(-50%) scale(1.1);
+    }
+  }
+
+  .animate-glitch {
+    animation: glitch 1s ease-in-out infinite;
+  }
+
+  @keyframes glitch {
+
+    0%,
+    100% {
+      transform: translate(0);
+    }
+
+    20% {
+      transform: translate(-2px, 2px);
+    }
+
+    40% {
+      transform: translate(-2px, -2px);
+    }
+
+    60% {
+      transform: translate(2px, 2px);
+    }
+
+    80% {
+      transform: translate(2px, -2px);
+    }
+  }
+
+  .animate-blink {
+    animation: blink 1s step-end infinite;
+  }
+
+  @keyframes blink {
+
+    0%,
+    50% {
+      opacity: 1;
+    }
+
+    51%,
+    100% {
+      opacity: 0;
+    }
+  }
+
+  /* Blockchain transaction flow animation */
+  .blockchain-flow {
+    position: relative;
+    overflow: hidden;
+  }
+
+  .blockchain-flow::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg,
+        transparent,
+        rgba(139, 92, 246, 0.4),
+        transparent);
+    animation: flow 3s linear infinite;
+  }
+
+  @keyframes flow {
+    0% {
+      left: -100%;
+    }
+
+    100% {
+      left: 100%;
+    }
+  }
+
+  /* Hash string styling */
+  .hash-string {
+    font-family: 'Courier New', monospace;
+    letter-spacing: -0.05em;
+    word-break: break-all;
+    color: var(--neon-green);
+    text-shadow: 0 0 5px rgba(0, 255, 65, 0.5);
+  }
+
+  /* Block number badge */
+  .block-number {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.25rem 0.75rem;
+    background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+    border: 2px solid var(--blockchain-purple);
+    font-family: var(--font-press-start);
+    font-size: 0.625rem;
+    color: var(--blockchain-purple);
+    text-transform: uppercase;
+    box-shadow: 0 0 10px rgba(139, 92, 246, 0.3);
+  }
+
+  .block-number::before {
+    content: '⬢';
+    font-size: 1rem;
   }
 }

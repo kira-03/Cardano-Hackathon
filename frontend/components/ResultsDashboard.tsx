@@ -1,6 +1,9 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
+import axios from 'axios'
+import { motion, AnimatePresence } from 'framer-motion'
+import { Download, RefreshCw, Award, Activity, FileText, Mail, ChevronDown, Zap, CheckCircle } from 'lucide-react'
 import ScoreCard from './ScoreCard'
 import MetricsSection from './MetricsSection'
 import RecommendationsSection from './RecommendationsSection'
@@ -8,6 +11,7 @@ import ExchangeRequirementsSection from './ExchangeRequirementsSection'
 import BridgeRoutesSection from './BridgeRoutesSection'
 import MasumiLogsSection from './MasumiLogsSection'
 import AIInsightsSection from './AIInsightsSection'
+import EmailReportModal from './EmailReportModal'
 
 interface ResultsDashboardProps {
   result: any
@@ -16,150 +20,332 @@ interface ResultsDashboardProps {
 
 export default function ResultsDashboard({ result, onNewAnalysis }: ResultsDashboardProps) {
   const [activeTab, setActiveTab] = useState('overview')
+  const [isExporting, setIsExporting] = useState(false)
+  const [showEmailModal, setShowEmailModal] = useState(false)
+  const [showViewDropdown, setShowViewDropdown] = useState(false)
+  const dropdownRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setShowViewDropdown(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
 
   const tabs = [
-    { id: 'overview', label: 'Overview', icon: '📊' },
-    { id: 'ai-insights', label: '🤖 AI Insights', icon: '🧠' },
-    { id: 'exchange', label: 'Exchange Prep', icon: '📋' },
-    { id: 'bridges', label: 'Bridge Routes', icon: '🌉' },
-    { id: 'masumi', label: 'Audit Log', icon: '🔒' },
+    { id: 'overview', label: 'OVERVIEW', icon: '📊' },
+    { id: 'ai-insights', label: 'AI INSIGHTS', icon: '🤖' },
+    { id: 'exchange', label: 'EXCHANGE', icon: '🏦' },
+    { id: 'bridges', label: 'BRIDGES', icon: '🌉' },
+    { id: 'masumi', label: 'AUDIT LOG', icon: '📝' },
   ]
 
+  const handleExportPDF = async () => {
+    setIsExporting(true)
+    try {
+      const response = await axios.post(
+        'http://localhost:8000/api/export/pdf',
+        result,
+        { responseType: 'blob' }
+      )
+
+      const blob = new Blob([response.data], { type: 'application/pdf' })
+      const url = window.URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `token_analysis_${result.analysis_id?.slice(0, 8) || 'report'}.pdf`
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      window.URL.revokeObjectURL(url)
+    } catch (error) {
+      console.error('Error exporting PDF:', error)
+      alert('Failed to export PDF. Please try again.')
+    } finally {
+      setIsExporting(false)
+    }
+  }
+
   return (
-    <div className="max-w-7xl mx-auto">
-      {/* Header */}
-      <div className="bg-white border border-slate-200 rounded-lg p-6 mb-6">
-        <div className="flex items-center justify-between mb-4">
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      className="max-w-6xl mx-auto space-y-6"
+    >
+      {/* Success Banner */}
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        className="pixel-card p-6 bg-gradient-to-r from-green-900/50 to-emerald-900/50 border-green-500"
+      >
+        <div className="flex items-center gap-4">
+          <motion.div
+            animate={{ rotate: [0, 360] }}
+            transition={{ duration: 2, ease: "easeInOut", repeat: Infinity }}
+            className="w-12 h-12 bg-green-600 border-2 border-green-400 flex items-center justify-center"
+          >
+            <CheckCircle className="w-8 h-8 text-white" />
+          </motion.div>
           <div>
-            <h1 className="text-2xl font-bold text-slate-900">
-              {result.token_name} ({result.token_symbol})
-            </h1>
-            <p className="text-sm text-slate-600 mt-1 font-mono">
-              {result.policy_id.slice(0, 30)}...{result.policy_id.slice(-10)}
-            </p>
-            <p className="text-xs text-slate-400 mt-1">
-              ID: {result.analysis_id.slice(0, 8)}
-            </p>
+            <p className="font-press-start text-sm text-green-400 mb-2">ANALYSIS COMPLETE</p>
+            <p className="font-vt323 text-xl text-green-300">ECOSYSTEMBRIDGE AI PROCESSING SUCCESSFUL</p>
           </div>
-          <div className="flex gap-3">
-            <a
-              href={`http://localhost:8000/api/analysis/${result.analysis_id}/pdf`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="px-5 py-2.5 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors shadow-sm flex items-center gap-2 font-medium"
+        </div>
+      </motion.div>
+
+      {/* Header */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.1 }}
+        className="pixel-card p-6"
+      >
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+          <div className="flex-1">
+            <div className="flex items-center gap-4 mb-3">
+              <h1 className="text-3xl font-press-start text-white uppercase">
+                {result.token_name}
+              </h1>
+              <span className="pixel-tag bg-blue-600 border-blue-400 text-white text-lg px-4 py-2">
+                {result.token_symbol}
+              </span>
+            </div>
+            <div className="font-vt323 text-lg text-slate-400 flex items-center gap-2 border-l-4 border-blue-500 pl-4 bg-slate-900/50 py-2">
+              <Zap className="w-4 h-4 text-yellow-400" />
+              POLICY: {result.policy_id.slice(0, 24)}...{result.policy_id.slice(-12)}
+            </div>
+          </div>
+
+          <div className="flex flex-wrap gap-3">
+            <button
+              onClick={handleExportPDF}
+              disabled={isExporting}
+              className="pixel-btn pixel-btn-primary flex items-center gap-2"
             >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-              </svg>
-              Download PDF
-            </a>
+              <Download className="w-4 h-4" />
+              {isExporting ? 'EXPORTING...' : 'DOWNLOAD PDF'}
+            </button>
+
+            <button
+              onClick={() => setShowEmailModal(true)}
+              className="pixel-btn bg-green-600 border-green-400 hover:bg-green-700 flex items-center gap-2"
+            >
+              <Mail className="w-4 h-4" />
+              EMAIL
+            </button>
+
             <button
               onClick={onNewAnalysis}
-              className="px-5 py-2.5 bg-slate-100 text-slate-700 rounded-md hover:bg-slate-200 transition-colors font-medium"
+              className="pixel-btn hover:bg-slate-700 flex items-center gap-2"
             >
-              New Analysis
+              <RefreshCw className="w-4 h-4" />
+              NEW
             </button>
           </div>
         </div>
-      </div>
+      </motion.div>
 
       {/* Score Card */}
-      <ScoreCard score={result.readiness_score} />
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.2 }}
+      >
+        <ScoreCard score={result.readiness_score} />
+      </motion.div>
 
       {/* Executive Summary */}
-      <div className="bg-gradient-to-br from-purple-50 via-blue-50 to-indigo-50 border-2 border-purple-200 rounded-lg p-6 mb-6 relative overflow-hidden">
-        {/* AI Sparkle Effect */}
-        <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-purple-300 to-blue-300 rounded-full blur-3xl opacity-20"></div>
-        
-        <div className="relative">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-semibold text-slate-900 flex items-center gap-2">
-              <span className="text-2xl">📊</span>
-              Executive Summary
-            </h2>
-            <div className="flex items-center gap-2 px-3 py-1.5 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-full text-xs font-bold shadow-md">
-              <span>🤖</span>
-              AI-Generated Insights
-              <span className="w-2 h-2 bg-white rounded-full animate-pulse"></span>
-            </div>
-          </div>
-          <div 
-            className="text-sm leading-relaxed text-slate-700 bg-white bg-opacity-60 rounded-lg p-4 border border-purple-100"
-            dangerouslySetInnerHTML={{ __html: result.executive_summary.replace(/\n/g, '<br />') }}
-          />
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.3 }}
+        className="pixel-card p-6"
+      >
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="font-press-start text-lg text-white flex items-center gap-3">
+            <Activity className="w-6 h-6 text-blue-400" />
+            EXECUTIVE SUMMARY
+          </h2>
+          <motion.span
+            className="pixel-tag bg-blue-600 border-blue-400 text-white text-xs"
+            animate={{ opacity: [1, 0.7, 1] }}
+            transition={{ duration: 2, repeat: Infinity }}
+          >
+            AI GENERATED
+          </motion.span>
         </div>
-      </div>
+        <div
+          className="font-vt323 text-xl leading-relaxed text-slate-300 bg-slate-900/50 p-6 border-l-4 border-blue-500"
+          dangerouslySetInnerHTML={{ __html: result.executive_summary.replace(/\n/g, '<br />') }}
+        />
+      </motion.div>
 
       {/* Next Steps */}
-      <div className="bg-blue-50 border-l-4 border-blue-500 rounded-lg p-6 mb-6">
-        <h2 className="text-xl font-semibold text-slate-900 mb-4">Next Steps</h2>
-        <ul className="space-y-3">
-          {result.next_steps.map((step: string, index: number) => (
-            <li key={index} className="flex items-start">
-              <span className="flex-shrink-0 w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-sm font-semibold mr-3 mt-0.5">{index + 1}</span>
-              <span className="text-slate-700">{step}</span>
-            </li>
-          ))}
-        </ul>
-      </div>
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.4 }}
+        className="pixel-card p-6 bg-gradient-to-br from-purple-900/20 to-blue-900/20 border-purple-500"
+      >
+        <h2 className="font-press-start text-lg text-white mb-6 flex items-center gap-3">
+          <Award className="w-6 h-6 text-yellow-400" />
+          RECOMMENDED NEXT STEPS
+        </h2>
+        <div className="grid gap-4 md:grid-cols-2">
+          {result.next_steps.map((step: string, index: number) => {
+            let content = step;
+            let priority = 'normal';
+            if (content.startsWith('[HIGH]')) { priority = 'high'; content = content.replace('[HIGH]', '').trim(); }
+            else if (content.startsWith('[MEDIUM]')) { priority = 'medium'; content = content.replace('[MEDIUM]', '').trim(); }
+            else if (content.startsWith('[EXCHANGE]')) { priority = 'exchange'; content = content.replace('[EXCHANGE]', '').trim(); }
+
+            const parts = content.split(/(\*\*.*?\*\*)/g);
+
+            let badgeColor = "bg-blue-600 border-blue-400";
+            if (priority === 'high') badgeColor = "bg-red-600 border-red-400";
+            if (priority === 'exchange') badgeColor = "bg-purple-600 border-purple-400";
+            if (priority === 'medium') badgeColor = "bg-yellow-600 border-yellow-400";
+
+            return (
+              <motion.div
+                key={index}
+                className="bg-slate-900/50 p-4 border-2 border-slate-700 flex items-start gap-4 hover:border-slate-600 transition-colors"
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: 0.5 + index * 0.1 }}
+              >
+                <div className={`flex-shrink-0 w-10 h-10 ${badgeColor} border-2 flex items-center justify-center font-press-start text-white text-sm`}>
+                  {index + 1}
+                </div>
+                <div>
+                  <p className="font-vt323 text-lg text-slate-200 leading-snug">
+                    {parts.map((part, i) => (
+                      part.startsWith('**') && part.endsWith('**')
+                        ? <strong key={i} className="text-white font-bold">{part.slice(2, -2)}</strong>
+                        : <span key={i}>{part}</span>
+                    ))}
+                  </p>
+                </div>
+              </motion.div>
+            );
+          })}
+        </div>
+      </motion.div>
 
       {/* Tabs */}
-      <div className="bg-white border border-slate-200 rounded-lg overflow-hidden">
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.5 }}
+        className="pixel-card overflow-hidden"
+      >
         {/* Tab Headers */}
-        <div className="border-b border-slate-200 bg-slate-50">
-          <div className="flex">
-            {tabs.map(tab => (
-              <button
+        <div className="border-b-4 border-slate-700 bg-slate-900/50 p-2">
+          <div className="flex gap-2 overflow-x-auto">
+            {tabs.map((tab, i) => (
+              <motion.button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`flex-1 px-6 py-3 text-center font-medium transition-all ${
-                  activeTab === tab.id
-                    ? 'bg-white text-blue-600 border-b-2 border-blue-600 -mb-px'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
+                className={`px-4 py-3 font-press-start text-xs whitespace-nowrap transition-all border-2 ${activeTab === tab.id
+                    ? 'bg-blue-600 border-blue-400 text-white shadow-[4px_4px_0px_0px_#000033]'
+                    : 'bg-slate-800 border-slate-600 text-slate-400 hover:bg-slate-700'
+                  }`}
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.6 + i * 0.05 }}
               >
+                <span className="mr-2">{tab.icon}</span>
                 {tab.label}
-              </button>
+              </motion.button>
             ))}
           </div>
         </div>
 
         {/* Tab Content */}
         <div className="p-6">
-          {activeTab === 'overview' && (
-            <div className="space-y-6">
-              <MetricsSection metrics={result.metrics} />
-              <RecommendationsSection recommendations={result.recommendations} />
-            </div>
-          )}
+          <AnimatePresence mode="wait">
+            {activeTab === 'overview' && (
+              <motion.div
+                key="overview"
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: 20 }}
+                className="space-y-8"
+              >
+                <MetricsSection metrics={result.metrics} />
+              </motion.div>
+            )}
 
-          {activeTab === 'ai-insights' && (
-            <AIInsightsSection 
-              readinessScore={result.readiness_score}
-              recommendations={result.recommendations}
-              executiveSummary={result.executive_summary}
-            />
-          )}
+            {activeTab === 'ai-insights' && (
+              <motion.div
+                key="ai-insights"
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: 20 }}
+              >
+                <AIInsightsSection
+                  readinessScore={result.readiness_score}
+                  recommendations={result.recommendations}
+                  executiveSummary={result.executive_summary}
+                />
+              </motion.div>
+            )}
 
-          {activeTab === 'exchange' && (
-            <ExchangeRequirementsSection 
-              requirements={result.exchange_requirements}
-              proposalUrl={result.proposal_pdf_url}
-            />
-          )}
+            {activeTab === 'exchange' && (
+              <motion.div
+                key="exchange"
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: 20 }}
+              >
+                <ExchangeRequirementsSection
+                  requirements={result.exchange_requirements}
+                  proposalUrl={result.proposal_pdf_url}
+                />
+              </motion.div>
+            )}
 
-          {activeTab === 'bridges' && (
-            <BridgeRoutesSection 
-              routes={result.bridge_routes}
-              recommendedChain={result.recommended_chain}
-            />
-          )}
+            {activeTab === 'bridges' && (
+              <motion.div
+                key="bridges"
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: 20 }}
+              >
+                <BridgeRoutesSection
+                  routes={result.bridge_routes}
+                  recommendedChain={result.recommended_chain}
+                />
+              </motion.div>
+            )}
 
-          {activeTab === 'masumi' && (
-            <MasumiLogsSection logs={result.masumi_logs} />
-          )}
+            {activeTab === 'masumi' && (
+              <motion.div
+                key="masumi"
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: 20 }}
+              >
+                <MasumiLogsSection logs={result.masumi_logs} />
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
-      </div>
-    </div>
+      </motion.div>
+
+      {/* Email Report Modal */}
+      <EmailReportModal
+        isOpen={showEmailModal}
+        onClose={() => setShowEmailModal(false)}
+        analysisId={result.analysis_id || ''}
+        tokenSymbol={result.token_symbol}
+        tokenName={result.token_name}
+      />
+    </motion.div>
   )
 }

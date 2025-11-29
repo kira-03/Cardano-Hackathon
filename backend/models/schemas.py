@@ -15,16 +15,24 @@ class AnalysisRequest(BaseModel):
     )
 
 class TokenMetrics(BaseModel):
-    """Token on-chain metrics"""
+    """Token on-chain and market metrics"""
     total_supply: str
     circulating_supply: str
     holder_count: int
     top_10_concentration: float
     top_50_concentration: float
-    liquidity_usd: float
-    volume_24h: float
+    # Market data from CoinPaprika API (free, no API key)
+    liquidity_usd: Optional[float] = None  # Estimated from market cap
+    volume_24h: Optional[float] = None  # 24h trading volume
+    price_usd: Optional[float] = None  # Current price
+    market_cap_usd: Optional[float] = None  # Market capitalization
+    price_change_24h: Optional[float] = None  # 24h price change %
+    # Scores
     metadata_score: float
     contract_risk_score: float
+    # Data source info
+    data_source: str = "BlockFrost (on-chain only)"
+    market_data_available: bool = False  # True if CoinPaprika data available
 
 class ReadinessScore(BaseModel):
     """Listing readiness score breakdown"""
@@ -36,6 +44,10 @@ class ReadinessScore(BaseModel):
     supply_stability_score: float
     market_activity_score: float
     grade: str  # A, B, C, D, F
+    # AI Insights
+    ai_analysis: Optional[Dict[str, str]] = None
+    critical_insights: Optional[List[str]] = None
+    exchange_readiness_factors: Optional[Dict[str, List[str]]] = None
 
 class Recommendation(BaseModel):
     """Improvement recommendation"""
@@ -44,6 +56,8 @@ class Recommendation(BaseModel):
     issue: str
     recommendation: str
     estimated_impact: str
+    implementation_timeline: Optional[str] = None
+    success_metrics: Optional[str] = None
 
 class ExchangeRequirement(BaseModel):
     """Exchange listing requirement"""

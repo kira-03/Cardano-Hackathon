@@ -2,7 +2,7 @@
 Exchange Preparation Agent - AI-powered CEX requirements analysis and listing document generation
 """
 from typing import Dict, Any, List
-import openai
+import google.generativeai as genai
 import json
 import logging
 import os
@@ -16,24 +16,25 @@ class ExchangePreparationAgent:
         self.name = "AI Exchange Preparation Agent"
         self.cardano_service = cardano_service
         
-        # Initialize OpenAI client (you can also use Anthropic Claude or other LLMs)
+        # Initialize Gemini AI client
         try:
-            if settings.openai_api_key and settings.use_ai_analysis:
-                # Set the API key
-                openai.api_key = settings.openai_api_key
-                self.llm_client = openai.OpenAI(api_key=settings.openai_api_key)
+            if settings.gemini_api_key and settings.use_ai_analysis:
+                # Configure Gemini
+                genai.configure(api_key=settings.gemini_api_key)
+                self.llm_model = genai.GenerativeModel('models/gemini-2.5-flash')
                 self.use_llm = True
-                logger.info("✅ LLM client initialized successfully")
-            elif os.getenv('OPENAI_API_KEY') and settings.use_ai_analysis:
+                logger.info("✅ Gemini AI client initialized successfully")
+            elif os.getenv('GEMINI_API_KEY') and settings.use_ai_analysis:
                 # Fallback to environment variable
-                self.llm_client = openai.OpenAI()
+                genai.configure(api_key=os.getenv('GEMINI_API_KEY'))
+                self.llm_model = genai.GenerativeModel('models/gemini-2.5-flash')
                 self.use_llm = True
-                logger.info("✅ LLM client initialized from environment")
+                logger.info("✅ Gemini AI client initialized from environment")
             else:
                 raise Exception("No API key available or AI analysis disabled")
         except Exception as e:
-            logger.warning(f"⚠️ LLM client not available: {e}. Using algorithmic analysis.")
-            self.llm_client = None
+            logger.warning(f"⚠️ Gemini AI client not available: {e}. Using algorithmic analysis.")
+            self.llm_model = None
             self.use_llm = False
         
         # Public CEX listing requirements (based on industry standards)
@@ -206,13 +207,9 @@ PROVIDE RESPONSE IN THIS EXACT JSON FORMAT:
 Be thorough and provide actionable insights based on real market standards.
 """
             
-            response = self.llm_client.chat.completions.create(
-                model="gpt-4",  # or "gpt-3.5-turbo" for faster/cheaper
-                messages=[{"role": "user", "content": prompt}],
-                temperature=0.3  # Lower for more consistent analysis
-            )
+            response = self.llm_model.generate_content(prompt)
             
-            ai_analysis = json.loads(response.choices[0].message.content)
+            ai_analysis = json.loads(response.text)
             
             # Create enhanced score object
             class AIScore:
@@ -385,14 +382,9 @@ Requirements:
 Return only the UVP text, no additional formatting.
 """
             
-            response = self.llm_client.chat.completions.create(
-                model="gpt-4",
-                messages=[{"role": "user", "content": prompt}],
-                temperature=0.5,
-                max_tokens=200
-            )
+            response = self.llm_model.generate_content(prompt)
             
-            uvp = response.choices[0].message.content.strip()
+            uvp = response.text.strip()
             logger.info("✅ AI UVP generated successfully")
             return uvp
             
@@ -445,14 +437,9 @@ Consider:
 Provide a concise 1-2 sentence market potential assessment that would be suitable for an exchange listing proposal.
 """
             
-            response = self.llm_client.chat.completions.create(
-                model="gpt-4",
-                messages=[{"role": "user", "content": prompt}],
-                temperature=0.4,
-                max_tokens=150
-            )
+            response = self.llm_model.generate_content(prompt)
             
-            assessment = response.choices[0].message.content.strip()
+            assessment = response.text.strip()
             logger.info("✅ AI market assessment completed")
             return assessment
             
@@ -507,14 +494,9 @@ REQUIREMENT: {requirement}
 Provide a specific, actionable recommendation (1-2 sentences) that the project team can implement to address this requirement. Focus on practical, achievable steps.
 """
             
-            response = self.llm_client.chat.completions.create(
-                model="gpt-4",
-                messages=[{"role": "user", "content": prompt}],
-                temperature=0.5,
-                max_tokens=100
-            )
+            response = self.llm_model.generate_content(prompt)
             
-            return response.choices[0].message.content.strip()
+            return response.text.strip()
             
         except Exception as e:
             logger.error(f"❌ AI action suggestion failed: {e}")

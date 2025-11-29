@@ -6,6 +6,7 @@ from blockfrost import BlockFrostApi, ApiError, ApiUrls
 from config import settings
 import asyncio
 import logging
+import time
 
 logger = logging.getLogger(__name__)
 
@@ -41,23 +42,18 @@ class CardanoService:
         """Get basic token information"""
         try:
             logger.info(f"Fetching token info for policy: {policy_id[:16]}...")
-            # Get assets for policy using BlockFrost SDK with timeout
-            assets = await asyncio.wait_for(
-                asyncio.to_thread(self.api.assets_policy, policy_id),
-                timeout=30.0
-            )
+            
+            # Get assets for policy - direct call without timeout
+            assets = await asyncio.to_thread(self.api.assets_policy, policy_id)
             logger.info(f"Found {len(assets)} assets for policy")
             
             if not assets:
                 raise Exception("No assets found for policy ID")
             
-            # Get first asset details
+            # Get first asset details - direct call without timeout
             asset_id = assets[0].asset
             logger.info(f"Fetching detailed info for asset: {asset_id[:16]}...")
-            asset_info = await asyncio.wait_for(
-                asyncio.to_thread(self.api.asset, asset_id),
-                timeout=30.0
-            )
+            asset_info = await asyncio.to_thread(self.api.asset, asset_id)
             logger.info(f"✓ Token info retrieved: {asset_info.asset_name or 'Unknown'}")
             
             # Extract metadata and convert to dict
@@ -93,22 +89,16 @@ class CardanoService:
         """Get token holder distribution"""
         try:
             logger.info(f"Fetching holders for policy: {policy_id[:16]}...")
-            # Get assets for policy
-            assets = await asyncio.wait_for(
-                asyncio.to_thread(self.api.assets_policy, policy_id),
-                timeout=30.0
-            )
+            # Get assets for policy - direct call
+            assets = await asyncio.to_thread(self.api.assets_policy, policy_id)
             
             if not assets:
                 return []
             
-            # Get addresses for first asset using BlockFrost SDK
+            # Get addresses for first asset - direct call
             asset_id = assets[0].asset
             logger.info(f"Fetching addresses for asset: {asset_id[:16]}...")
-            addresses = await asyncio.wait_for(
-                asyncio.to_thread(self.api.asset_addresses, asset_id),
-                timeout=30.0
-            )
+            addresses = await asyncio.to_thread(self.api.asset_addresses, asset_id)
             logger.info(f"✓ Found {len(addresses)} holders")
             
             holders = []
@@ -272,28 +262,19 @@ class CardanoService:
         Analyze smart contract risk factors (0-100, higher is better)
         """
         try:
-            # Get assets for policy
-            assets = await asyncio.wait_for(
-                asyncio.to_thread(self.api.assets_policy, policy_id),
-                timeout=30.0
-            )
+            # Get assets for policy - direct call
+            assets = await asyncio.to_thread(self.api.assets_policy, policy_id)
             
             if not assets:
                 return 50.0
             
             asset_id = assets[0].asset
             
-            # Get asset info using BlockFrost SDK
-            asset_info = await asyncio.wait_for(
-                asyncio.to_thread(self.api.asset, asset_id),
-                timeout=30.0
-            )
+            # Get asset info - direct call
+            asset_info = await asyncio.to_thread(self.api.asset, asset_id)
             
-            # Get asset history
-            history = await asyncio.wait_for(
-                asyncio.to_thread(self.api.asset_history, asset_id, count=100),
-                timeout=30.0
-            )
+            # Get asset history - direct call
+            history = await asyncio.to_thread(self.api.asset_history, asset_id, count=100)
             
             score = 100.0
             

@@ -206,8 +206,9 @@ async def analyze_token(request: AnalysisRequest):
         return response
         
     except Exception as e:
-        logger.error(f"❌ ERROR during analysis: {str(e)}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        error_msg = str(e)
+        logger.error(f"❌ ERROR during analysis: {error_msg}", exc_info=True)
+        raise HTTPException(status_code=500, detail=error_msg)
 
 @app.get("/api/token/{policy_id}/info")
 async def get_token_info(policy_id: str):

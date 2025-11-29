@@ -2,7 +2,7 @@
 Token Analysis Agent - AI-powered on-chain token metrics analysis and readiness scoring
 """
 from typing import Dict, Any, List
-import openai
+import google.generativeai as genai
 import json
 import logging
 import os
@@ -17,22 +17,23 @@ class TokenAnalysisAgent:
         self.cardano_service = cardano_service
         self.name = "AI Token Analysis Agent"
         
-        # Initialize AI capabilities
+        # Initialize Gemini AI capabilities
         try:
-            if settings.openai_api_key and settings.use_ai_analysis:
-                openai.api_key = settings.openai_api_key
-                self.llm_client = openai.OpenAI(api_key=settings.openai_api_key)
+            if settings.gemini_api_key and settings.use_ai_analysis:
+                genai.configure(api_key=settings.gemini_api_key)
+                self.llm_model = genai.GenerativeModel('models/gemini-2.5-flash')
                 self.use_llm = True
-                logger.info("✅ AI Token Analysis Agent initialized with LLM")
-            elif os.getenv('OPENAI_API_KEY') and settings.use_ai_analysis:
-                self.llm_client = openai.OpenAI()
+                logger.info("✅ AI Token Analysis Agent initialized with Gemini")
+            elif os.getenv('GEMINI_API_KEY') and settings.use_ai_analysis:
+                genai.configure(api_key=os.getenv('GEMINI_API_KEY'))
+                self.llm_model = genai.GenerativeModel('models/gemini-2.5-flash')
                 self.use_llm = True
-                logger.info("✅ AI Token Analysis Agent initialized from environment")
+                logger.info("✅ AI Token Analysis Agent initialized with Gemini from environment")
             else:
                 raise Exception("AI analysis disabled or no API key")
         except Exception as e:
             logger.warning(f"⚠️ AI disabled for Token Analysis: {e}")
-            self.llm_client = None
+            self.llm_model = None
             self.use_llm = False
     
     async def analyze(self, policy_id: str) -> Dict[str, Any]:
@@ -349,14 +350,9 @@ PROVIDE DETAILED ANALYSIS IN THIS JSON FORMAT:
 Be thorough and provide actionable insights for exchange listing preparation.
 """
             
-            response = self.llm_client.chat.completions.create(
-                model="gpt-4",
-                messages=[{"role": "user", "content": prompt}],
-                temperature=0.2,  # Lower for more consistent analysis
-                max_tokens=2000
-            )
+            response = self.llm_model.generate_content(prompt)
             
-            ai_analysis = json.loads(response.choices[0].message.content)
+            ai_analysis = json.loads(response.text)
             
             # Create enhanced ReadinessScore with AI insights
             scores = ai_analysis["component_scores"]
@@ -435,14 +431,9 @@ Generate 5-8 prioritized recommendations in this JSON format:
 Focus on practical, achievable actions that will have measurable impact on exchange listing prospects.
 """
             
-            response = self.llm_client.chat.completions.create(
-                model="gpt-4",
-                messages=[{"role": "user", "content": prompt}],
-                temperature=0.4,
-                max_tokens=1500
-            )
+            response = self.llm_model.generate_content(prompt)
             
-            ai_recs = json.loads(response.choices[0].message.content)
+            ai_recs = json.loads(response.text)
             
             # Convert to Recommendation objects
             recommendations = []

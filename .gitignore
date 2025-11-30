@@ -1,13 +1,48 @@
+# Python
 __pycache__/
 *.pyc
+*.pyo
+*.pyd
 venv/
+.venv/
+*.egg-info/
+.pytest_cache/
+
+# Node.js
 node_modules/
 .next/
-package-lock.json
 dist/
 build/
 coverage/
+
+# Environment files (IMPORTANT: Never commit these!)
+.env
+.env.local
+.env.*.local
+backend/.env
+frontend/.env.local
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+cardano_navigator.db
+
+# Outputs and logs
 outputs/
 *.log
-*.DS_Store
+*.pdf
+*.docx
+
+# IDE and OS
+.DS_Store
 *.swp
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+
+# Build artifacts
+package-lock.json

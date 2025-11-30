@@ -2,38 +2,26 @@ services:
   # Backend FastAPI Service
   - type: web
     name: cardano-hackathon-backend
-    env: docker
-    branch: main
+    runtime: docker
     plan: free
-    root: backend
     dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
     autoDeploy: true
     envVars:
       - key: PYTHONUNBUFFERED
         value: "1"
       - key: ENVIRONMENT
         value: "production"
-      # Add these in Render Dashboard (Secret Variables):
-      # - BLOCKFROST_API_KEY (your Blockfrost API key)
-      # - BLOCKFROST_NETWORK (mainnet or testnet)
-      # - OPENAI_API_KEY (optional, for AI features)
-      # - DATABASE_URL (optional, defaults to SQLite)
     healthCheckPath: /health
 
   # Frontend Next.js Service
   - type: web
     name: cardano-hackathon-frontend
-    env: node
-    branch: main
+    runtime: node
     plan: free
-    root: frontend
-    buildCommand: npm install && npm run build
-    startCommand: npm run start -- -p $PORT
+    buildCommand: cd frontend && npm install && npm run build
+    startCommand: cd frontend && npm run start -- -p $PORT
     autoDeploy: true
     envVars:
       - key: NODE_ENV
         value: production
-      - key: NEXT_PUBLIC_API_URL
-        # This will be set to your backend URL after deployment
-        # Update this in Render Dashboard to: https://cardano-hackathon-backend.onrender.com
-        sync: false

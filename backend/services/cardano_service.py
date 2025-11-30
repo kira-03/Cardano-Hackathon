@@ -1,6 +1,7 @@
 """
 Cardano Service - Interfaces with Blockfrost API for on-chain data
 """
+import os
 from typing import Dict, Any, List, Optional
 from blockfrost import BlockFrostApi, ApiError, ApiUrls
 from config import settings

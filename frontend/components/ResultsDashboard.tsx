@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from 'react'
 import axios from 'axios'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Download, RefreshCw, Award, Activity, FileText, Mail, ChevronDown, Zap, CheckCircle } from 'lucide-react'
+import { Download, RefreshCw, Award, Activity, FileText, ChevronDown, Zap, CheckCircle } from 'lucide-react'
 import ScoreCard from './ScoreCard'
 import MetricsSection from './MetricsSection'
 import RecommendationsSection from './RecommendationsSection'
@@ -21,7 +21,7 @@ interface ResultsDashboardProps {
 export default function ResultsDashboard({ result, onNewAnalysis }: ResultsDashboardProps) {
   const [activeTab, setActiveTab] = useState('overview')
   const [isExporting, setIsExporting] = useState(false)
-  const [showEmailModal, setShowEmailModal] = useState(false)
+  // email modal removed per user request
   const [showViewDropdown, setShowViewDropdown] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
 
@@ -129,13 +129,7 @@ export default function ResultsDashboard({ result, onNewAnalysis }: ResultsDashb
               {isExporting ? 'EXPORTING...' : 'DOWNLOAD PDF'}
             </button>
 
-            <button
-              onClick={() => setShowEmailModal(true)}
-              className="pixel-btn bg-green-600 border-green-400 hover:bg-green-700 flex items-center gap-2"
-            >
-              <Mail className="w-4 h-4" />
-              EMAIL
-            </button>
+            {/* Email feature removed */}
 
             <button
               onClick={onNewAnalysis}
@@ -292,6 +286,7 @@ export default function ResultsDashboard({ result, onNewAnalysis }: ResultsDashb
                   readinessScore={result.readiness_score}
                   recommendations={result.recommendations}
                   executiveSummary={result.executive_summary}
+                  policyId={result.policy_id}
                 />
               </motion.div>
             )}
@@ -338,14 +333,7 @@ export default function ResultsDashboard({ result, onNewAnalysis }: ResultsDashb
         </div>
       </motion.div>
 
-      {/* Email Report Modal */}
-      <EmailReportModal
-        isOpen={showEmailModal}
-        onClose={() => setShowEmailModal(false)}
-        analysisId={result.analysis_id || ''}
-        tokenSymbol={result.token_symbol}
-        tokenName={result.token_name}
-      />
+      {/* Email report feature removed */}
     </motion.div>
   )
 }

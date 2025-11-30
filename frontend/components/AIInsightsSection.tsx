@@ -1,28 +1,251 @@
 'use client'
 
-import { useState } from 'react'
-// Removed AISymbol import
+import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 
 interface AIInsightsSectionProps {
-  readinessScore: any
-  recommendations: any[]
-  executiveSummary: string
+  readinessScore: any;
+  recommendations: any[];
+  executiveSummary: string;
+  policyId: string;
+  targetLiquidity?: number;
+  targetChains?: string[];
 }
 
 export default function AIInsightsSection({
   readinessScore,
   recommendations,
-  executiveSummary
+  executiveSummary,
+  policyId,
+  targetLiquidity = 0,
+  targetChains = ['Ethereum', 'BSC', 'Polygon']
 }: AIInsightsSectionProps) {
-  const [expandedInsight, setExpandedInsight] = useState<string | null>('overview')
+  const [liquidityPlan, setLiquidityPlan] = useState<any>(null)
+  const [bridgeSimulation, setBridgeSimulation] = useState<any>(null)
+  
+  // Derive a stable key for targetChains to avoid triggering effects
+  const chainsKey = Array.isArray(targetChains) ? targetChains.join(',') : String(targetChains)
+
+  useEffect(() => {
+    console.log('[AIInsightsSection] Mounted. Props:', { policyId, targetLiquidity, targetChains });
+    console.log('[AIInsightsSection] All props received:', { 
+      readinessScore, 
+      recommendations, 
+      executiveSummary, 
+      policyId, 
+      targetLiquidity, 
+      targetChains 
+    });
+    
+    if (policyId) {
+      console.log('[AIInsightsSection] Fetching liquidity plan...');
+      const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+      const liquidityUrl = `${API_BASE}/api/liquidity-plan/${encodeURIComponent(policyId)}?target_liquidity=${encodeURIComponent(targetLiquidity)}`;
+      fetch(liquidityUrl)
+        .then(res => {
+          if (!res.ok) {
+            console.error('[AIInsightsSection] Liquidity Plan fetch failed:', res.status, res.statusText, liquidityUrl);
+            throw new Error('Liquidity Plan fetch failed');
+          }
+          return res.json();
+        })
+        .then(data => {
+          setLiquidityPlan(data);
+          console.log('Liquidity Plan:', data);
+        })
+        .catch(err => {
+          setLiquidityPlan(null);
+          console.error('[AIInsightsSection] Liquidity Plan error:', err, liquidityUrl);
+        });
+
+      console.log('[AIInsightsSection] Fetching bridge simulation...');
+      const chainsParam = encodeURIComponent((Array.isArray(targetChains) ? targetChains.join(',') : targetChains));
+      const bridgeUrl = `${API_BASE}/api/bridge-simulation/${encodeURIComponent(policyId)}?target_chains=${chainsParam}`;
+      fetch(bridgeUrl)
+        .then(res => {
+          if (!res.ok) {
+            console.error('[AIInsightsSection] Bridge Simulation fetch failed:', res.status, res.statusText, bridgeUrl);
+            throw new Error('Bridge Simulation fetch failed');
+          }
+          return res.json();
+        })
+        .then(data => {
+          setBridgeSimulation(data);
+          console.log('Bridge Simulation:', data);
+        })
+        .catch(err => {
+          setBridgeSimulation(null);
+          console.error('[AIInsightsSection] Bridge Simulation error:', err, bridgeUrl);
+        });
+    } else {
+      console.warn('[AIInsightsSection] No policyId provided, skipping API calls');
+    }
+  }, [policyId, targetLiquidity, chainsKey]);
+  
+  const [expandedInsight, setExpandedInsight] = useState<string | null>(null)
+
+  // Defensive display values for liquidity plan
+  const displayAdaToAdd = (() => {
+    if (!liquidityPlan) return 'N/A'
+    if (liquidityPlan.ada_to_add !== undefined && liquidityPlan.ada_to_add !== null) return `${liquidityPlan.ada_to_add} ADA`
+    if (liquidityPlan.ada_to_add_usd !== undefined && liquidityPlan.ada_to_add_usd !== null) return `${liquidityPlan.ada_to_add_usd} USD (convert to ADA)`
+    return 'N/A'
+  })()
 
   const insights = [
     {
       id: 'overview',
       title: 'ANALYSIS OVERVIEW',
       icon: '📊',
-      content: executiveSummary,
+      content: executiveSummary || 'No executive summary available',
+      highlight: true
+    },
+    {
+      id: 'actionable',
+      title: 'ACTIONABLE STRATEGIES',
+      icon: '🎯',
+      content: (
+        <>
+          {/* Debug info */}
+          <div className="mb-4 p-3 bg-slate-800/60 border border-slate-600 rounded text-xs">
+            <p className="text-yellow-300 mb-1">Debug Info:</p>
+            <p className="text-slate-300">PolicyId: {policyId || 'Not provided'}</p>
+            <p className="text-slate-300">Liquidity Plan: {liquidityPlan ? 'Loaded ✓' : 'Not loaded ✗'}</p>
+            <p className="text-slate-300">Bridge Sim: {bridgeSimulation ? 'Loaded ✓' : 'Not loaded ✗'}</p>
+          </div>
+
+          {!liquidityPlan && !bridgeSimulation && (
+            <div className="p-4 bg-yellow-900/30 border-2 border-yellow-600 rounded">
+              <p className="font-vt323 text-lg text-yellow-200">
+                {policyId 
+                  ? '⏳ Loading actionable strategies...' 
+                  : '⚠️ No policy ID provided. Unable to generate strategies.'}
+              </p>
+            </div>
+          )}
+          
+          {/* Liquidity Plan Details (Live) */}
+          {liquidityPlan && (
+            <div className="mb-4 p-4 bg-blue-950/40 border-2 border-blue-700 rounded-lg">
+              <h4 className="font-press-start text-sm text-blue-300 mb-3 flex items-center gap-2">
+                <span>💧</span>
+                LIQUIDITY OPTIMIZATION PLAN
+              </h4>
+              <div className="font-vt323 text-base text-blue-200 space-y-3">
+                <div className="grid grid-cols-2 gap-4 mb-3">
+                  <div className="bg-blue-900/40 p-3 border border-blue-600 rounded">
+                    <p className="text-blue-400 text-sm mb-1">Target Addition</p>
+                    <p className="text-xl font-bold">{displayAdaToAdd}</p>
+                  </div>
+                  <div className="bg-blue-900/40 p-3 border border-blue-600 rounded">
+                    <p className="text-blue-400 text-sm mb-1">Optimal Pool</p>
+                    <p className="text-lg font-bold">{liquidityPlan.optimal_pool_pair}</p>
+                  </div>
+                </div>
+                
+                <div className="bg-blue-900/40 p-3 border border-blue-600 rounded">
+                  <p className="text-blue-400 text-sm mb-2">Recommended Split</p>
+                  <div className="flex gap-3">
+                    {(() => {
+                      const split = liquidityPlan?.liquidity_split || { ADA: 0, Other: 0 };
+                      const adaPct = Number.isFinite(Number(split.ADA)) ? Math.round(Number(split.ADA) * 100) : 0;
+                      const otherPct = Number.isFinite(Number(split.Other)) ? Math.round(Number(split.Other) * 100) : 0;
+                      return (
+                        <>
+                          <span className="px-3 py-1 bg-blue-800 rounded">ADA: {adaPct}%</span>
+                          <span className="px-3 py-1 bg-blue-800 rounded">Other: {otherPct}%</span>
+                        </>
+                      )
+                    })()}
+                  </div>
+                </div>
+
+                <div className="bg-blue-900/40 p-3 border border-blue-600 rounded">
+                  <p className="text-blue-400 text-sm mb-2">Sample Transaction</p>
+                  <pre className="bg-slate-900/60 p-3 rounded text-xs overflow-x-auto">
+                    {JSON.stringify(liquidityPlan.sample_transaction, null, 2)}
+                  </pre>
+                </div>
+
+                <div className="bg-blue-900/40 p-3 border border-blue-600 rounded">
+                  <p className="text-blue-400 text-sm mb-2">📅 Liquidity Deployment Schedule</p>
+                  <div className="space-y-2">
+                    {((liquidityPlan?.liquidity_schedule) || []).map((item: any, idx: number) => (
+                      <div key={idx} className="flex justify-between items-center bg-blue-950/40 p-2 rounded">
+                        <span className="text-blue-300">Week {item.week}</span>
+                        <span className="text-blue-100">{item.date}</span>
+                        <span className="text-blue-300 font-bold">{item.ada_amount ?? item.ada ?? 'N/A'} ADA</span>
+                      </div>
+                    ))}
+                    {(!(liquidityPlan?.liquidity_schedule) || (liquidityPlan?.liquidity_schedule || []).length === 0) && (
+                      <div className="text-sm text-blue-300">No schedule available</div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Bridge Simulation Details (Live) */}
+          {bridgeSimulation && (
+            <div className="p-4 bg-purple-950/40 border-2 border-purple-700 rounded-lg">
+              <h4 className="font-press-start text-sm text-purple-300 mb-3 flex items-center gap-2">
+                <span>🌉</span>
+                CROSS-CHAIN BRIDGE ANALYSIS
+              </h4>
+              <div className="font-vt323 text-base text-purple-200 space-y-3">
+                <div className="bg-purple-900/40 p-3 border border-purple-600 rounded">
+                  <p className="text-purple-400 text-sm mb-2">🎯 Recommended Chain</p>
+                  <p className="text-2xl font-bold text-purple-100 mb-2">
+                    {bridgeSimulation.recommended_chain}
+                  </p>
+                  <p className="text-base text-purple-200">
+                    {bridgeSimulation.recommendation_reasoning}
+                  </p>
+                </div>
+
+                <div className="bg-purple-900/40 p-3 border border-purple-600 rounded">
+                  <p className="text-purple-400 text-sm mb-3">Available Bridge Routes</p>
+                  <div className="space-y-2">
+                    {bridgeSimulation.routes.map((route: any, idx: number) => (
+                      <div key={idx} className="bg-purple-950/60 p-3 border border-purple-700 rounded">
+                        <div className="flex items-center gap-2 mb-2">
+                          <span className="text-xl">🔗</span>
+                          <span className="font-bold text-purple-100">
+                            {route.source_chain} → {route.target_chain}
+                          </span>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2 text-sm">
+                          <div>
+                            <span className="text-purple-400">Bridge: </span>
+                            <span className="text-purple-200">{route.bridge_name}</span>
+                          </div>
+                          <div>
+                            <span className="text-purple-400">Fee: </span>
+                            <span className="text-purple-200">{route.estimated_fee}</span>
+                          </div>
+                          <div>
+                            <span className="text-purple-400">Time: </span>
+                            <span className="text-purple-200">{route.estimated_time}</span>
+                          </div>
+                          <div>
+                            <span className="text-purple-400">Trust: </span>
+                            <span className="text-purple-200">{route.trust_model}</span>
+                          </div>
+                        </div>
+                        <div className="mt-2 pt-2 border-t border-purple-700">
+                          <span className="text-purple-400">Score: </span>
+                          <span className="text-purple-100 font-bold">{route.recommendation_score}/100</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </>
+      ),
       highlight: true
     },
     {
@@ -92,37 +315,7 @@ export default function AIInsightsSection({
 
   return (
     <div className="space-y-6">
-      {/* AI Badge Header */}
-      <motion.div
-        initial={{ opacity: 0, y: -10 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="bg-gradient-to-br from-purple-900/50 to-blue-900/50 border-4 border-purple-500 p-6"
-      >
-        <div className="flex items-center gap-4 mb-6">
-          <div className="w-16 h-16 bg-purple-600 border-4 border-purple-400 flex items-center justify-center">
-            <span className="text-4xl">👾</span>
-          </div>
-          <div>
-            <h2 className="font-press-start text-lg text-white mb-2">INTELLIGENT ANALYSIS</h2>
-            <p className="font-vt323 text-xl text-purple-300">POWERED BY OPENAI</p>
-          </div>
-        </div>
-
-        {/* AI Capabilities */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          {[
-            { label: 'SCORING', icon: '📊' },
-            { label: 'INSIGHTS', icon: '💡' },
-            { label: 'RISK ANALYSIS', icon: '⚠️' },
-            { label: 'FORECASTING', icon: '🔮' }
-          ].map((capability) => (
-            <div key={capability.label} className="bg-purple-800/50 border-2 border-purple-600 py-3 px-2 text-center">
-              <div className="text-2xl mb-1">{capability.icon}</div>
-              <div className="font-press-start text-[10px] text-purple-200">{capability.label}</div>
-            </div>
-          ))}
-        </div>
-      </motion.div>
+      {/* AI Badge removed per request */}
 
       {/* Critical AI Insights */}
       {criticalInsights.length > 0 && (
@@ -254,9 +447,9 @@ export default function AIInsightsSection({
                 exit={{ opacity: 0, height: 0 }}
                 className="px-6 py-5 bg-slate-800/30"
               >
-                <p className="font-vt323 text-xl text-slate-200 leading-relaxed whitespace-pre-line">
+                <div className="font-vt323 text-xl text-slate-200 leading-relaxed whitespace-pre-line">
                   {insight.content}
-                </p>
+                </div>
               </motion.div>
             )}
           </motion.div>

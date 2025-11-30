@@ -319,14 +319,14 @@ class CrossChainRoutingAgent:
         token_liquidity: float
     ) -> List[Dict[str, Any]]:
         """Rank target chains by suitability"""
-        rankings = []
-        
+        rankings: List[Dict[str, Any]] = []
+
         for chain in chains:
             if chain not in self.chain_info:
                 continue
-            
+
             info = self.chain_info[chain]
-            
+
             # Calculate overall score
             # Factors: liquidity depth, user base, CEX support, costs
             score = (
@@ -335,31 +335,31 @@ class CrossChainRoutingAgent:
                 info["cex_support"] * 0.25 +
                 (100 - info["avg_gas_cost"] * 2) * 0.20
             )
-            
-            # Adjust for token liquidity
-            if token_liquidity < 50000:
+
+            # Adjust for token liquidity (treat None as 0)
+            liquidity = token_liquidity if token_liquidity is not None else 0
+            if liquidity < 50000:
                 # Smaller projects prefer cheaper chains
-                if info["avg_gas_cost"] < 5:
+                if info.get("avg_gas_cost", 999) < 5:
                     score += 10
             else:
                 # Larger projects prefer higher liquidity chains
-                if info["liquidity_depth"] > 80:
+                if info.get("liquidity_depth", 0) > 80:
                     score += 10
-            
+
             rankings.append({
                 "chain": chain,
                 "score": round(score, 1),
-                "liquidity_depth": info["liquidity_depth"],
-                "user_base": info["user_base_score"],
-                "avg_gas_cost": f"${info['avg_gas_cost']}",
-                "cex_support": info["cex_support"],
-                "dex_count": info["dex_count"]
+                "liquidity_depth": info.get("liquidity_depth", 0),
+                "user_base": info.get("user_base_score", 0),
+                "avg_gas_cost": f"${info.get('avg_gas_cost', 0)}",
+                "cex_support": info.get("cex_support", 0),
+                "dex_count": info.get("dex_count", 0)
             })
-        
+
         # Sort by score descending
         rankings.sort(key=lambda x: x["score"], reverse=True)
         return rankings
-    
     def _explain_recommendation(
         self,
         recommended_chain: str,
@@ -368,24 +368,43 @@ class CrossChainRoutingAgent:
         """Explain why a chain is recommended"""
         if not recommended_chain or not rankings:
             return "No recommendation available"
-        
+
         top_chain = rankings[0]
-        
-        reasons = []
-        
-        if top_chain["liquidity_depth"] > 85:
-            reasons.append("excellent liquidity depth")
-        
-        if top_chain["user_base"] > 85:
-            reasons.append("large user base")
-        
-        if top_chain["cex_support"] > 85:
-            reasons.append("strong CEX support")
-        
-        if float(top_chain["avg_gas_cost"].replace("$", "")) < 5:
-            reasons.append("low transaction costs")
-        
+
+        reasons: List[str] = []
+
+        # Use safe getters with defaults in case keys are missing
+        try:
+            if float(top_chain.get("liquidity_depth", 0)) > 85:
+                reasons.append("excellent liquidity depth")
+
+            if float(top_chain.get("user_base", 0)) > 85:
+                reasons.append("large user base")
+
+            if float(top_chain.get("cex_support", 0)) > 85:
+                reasons.append("strong CEX support")
+
+            # avg_gas_cost may be stored as "$X" or numeric; parse defensively
+            avg_raw = top_chain.get("avg_gas_cost", 0)
+            avg_val = None
+            if isinstance(avg_raw, str):
+                try:
+                    avg_val = float(avg_raw.replace("$", "").strip())
+                except Exception:
+                    avg_val = None
+            else:
+                try:
+                    avg_val = float(avg_raw)
+                except Exception:
+                    avg_val = None
+
+            if avg_val is not None and avg_val < 5:
+                reasons.append("low transaction costs")
+        except Exception:
+            # Never raise here — return a safe fallback recommendation
+            return f"{recommended_chain} recommended (partial analysis)."
+
         if reasons:
             return f"{recommended_chain} recommended due to {', '.join(reasons)}."
-        
+
         return f"{recommended_chain} offers the best overall balance for cross-chain expansion."

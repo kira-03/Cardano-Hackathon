@@ -48,11 +48,29 @@ class CardanoService:
     async def check_connection(self) -> bool:
         """Check if Blockfrost connection is working"""
         try:
+            # Allow bypassing the health check for local development or when
+            # a valid Blockfrost key is not available. Set environment
+            # variable `SKIP_BLOCKFROST_CHECK=1` to skip the check.
+            if str(getattr(settings, 'skip_blockfrost_check', False)).lower() in ('1', 'true', 'yes') or os.getenv('SKIP_BLOCKFROST_CHECK') in ('1', 'true', 'yes'):
+                logger.warning("SKIP_BLOCKFROST_CHECK enabled - skipping BlockFrost health check")
+                return False
+
             # Use sync method in async context
             health = await asyncio.to_thread(self.api.health)
             return health.is_healthy
         except Exception as e:
-            logger.error(f"BlockFrost connection check failed: {e}")
+            # If Blockfrost returns HTTP 403 it usually means the project
+            # key is invalid, disabled, or the request is forbidden by the
+            # Blockfrost account configuration. Log a helpful hint.
+            try:
+                # ApiError from SDK exposes status_code and message
+                if hasattr(e, 'status_code') and getattr(e, 'status_code') == 403:
+                    logger.error("BlockFrost connection check failed: 403 Forbidden - check your BlockFrost API key, project status, and network (mainnet/preview).")
+                    logger.error("Hint: set a valid key in backend/.env as BLOCKFROST_API_KEY or export environment variable BLOCKFROST_API_KEY.")
+                else:
+                    logger.error(f"BlockFrost connection check failed: {e}")
+            except Exception:
+                logger.error(f"BlockFrost connection check failed: {e}")
             return False
     
     async def get_token_info(self, policy_id: str) -> Dict[str, Any]:

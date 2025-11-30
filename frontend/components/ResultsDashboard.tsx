@@ -11,7 +11,7 @@ import ExchangeRequirementsSection from './ExchangeRequirementsSection'
 import BridgeRoutesSection from './BridgeRoutesSection'
 import MasumiLogsSection from './MasumiLogsSection'
 import AIInsightsSection from './AIInsightsSection'
-import EmailReportModal from './EmailReportModal'
+
 
 interface ResultsDashboardProps {
   result: any

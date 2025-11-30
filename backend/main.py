@@ -1,6 +1,7 @@
 """
 Cross-Chain Navigator Agent - Main FastAPI Application
 """
+import os
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
@@ -13,13 +14,12 @@ import logging
 
 # Configure logging with more detailed output
 logging.basicConfig(
-    level=logging.DEBUG,  # Changed to DEBUG for maximum visibility
+    level=logging.DEBUG,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     handlers=[
-        logging.StreamHandler(),  # Console output
+        logging.StreamHandler(),
     ]
 )
-# Set specific loggers to DEBUG
 logging.getLogger('services.cardano_service').setLevel(logging.DEBUG)
 logging.getLogger('agents.token_analysis_agent').setLevel(logging.DEBUG)
 logging.getLogger('agents.exchange_preparation_agent').setLevel(logging.DEBUG)
@@ -46,7 +46,6 @@ from agents.exchange_preparation_agent import ExchangePreparationAgent
 from agents.cross_chain_routing_agent import CrossChainRoutingAgent
 from utils.pdf_generator import PDFGenerator
 from utils.docx_generator import ListingProposalGenerator
-from services.email_service import EmailService
 
 # Initialize FastAPI app
 app = FastAPI(
@@ -57,9 +56,6 @@ app = FastAPI(
 
 # Store analysis results for PDF generation
 analysis_cache: Dict[str, dict] = {}
-
-# Initialize email service
-email_service = EmailService()
 
 @app.on_event("startup")
 async def startup_event():
@@ -118,8 +114,8 @@ async def health_check():
         "timestamp": datetime.utcnow().isoformat(),
         "services": {
             "blockfrost": blockfrost_connected,
-            "database": True,  # Simplified check
-            "masumi": False  # Would check Masumi node in production
+            "database": True,
+            "masumi": False
         },
         "network": settings.blockfrost_network
     }
@@ -212,7 +208,6 @@ async def analyze_token(request: AnalysisRequest):
         ]
         
         # Build response
-        # Extract token symbol from metadata, or use asset_name as fallback
         metadata = token_analysis["token_info"].get("metadata", {})
         token_symbol = metadata.get("ticker") or metadata.get("symbol") or token_analysis["token_info"].get("asset_name", "TOKEN")
         token_name = metadata.get("name") or token_analysis["token_info"].get("asset_name", "Unknown")
@@ -300,19 +295,15 @@ async def get_token_info(policy_id: str):
 async def get_analysis_pdf(analysis_id: str):
     """Generate and download PDF report for an analysis"""
     try:
-        # Check if analysis exists in cache
         if analysis_id not in analysis_cache:
             raise HTTPException(status_code=404, detail="Analysis not found. Please run the analysis first.")
         
         analysis_data = analysis_cache[analysis_id]
-        
-        # Generate PDF
         pdf_path = await pdf_generator.generate_analysis_report(analysis_id, analysis_data)
         
         if not pdf_path:
             raise HTTPException(status_code=500, detail="Failed to generate PDF")
         
-        # Return the PDF file
         return FileResponse(
             path=pdf_path,
             filename=f"token_analysis_{analysis_id[:8]}.pdf",
@@ -330,14 +321,11 @@ async def export_analysis_to_pdf(analysis_data: dict):
     """Generate PDF from provided analysis data"""
     try:
         analysis_id = analysis_data.get('analysis_id', str(uuid.uuid4()))
-        
-        # Generate PDF
         pdf_path = await pdf_generator.generate_analysis_report(analysis_id, analysis_data)
         
         if not pdf_path:
             raise HTTPException(status_code=500, detail="Failed to generate PDF")
         
-        # Return the PDF file
         return FileResponse(
             path=pdf_path,
             filename=f"token_analysis_{analysis_id[:8]}.pdf",
@@ -355,7 +343,7 @@ async def get_token_holders(policy_id: str):
         holders = await cardano_service.get_token_holders(policy_id)
         analysis = await cardano_service.analyze_holder_distribution(holders)
         return {
-            "holders": holders[:50],  # Return top 50
+            "holders": holders[:50],
             "analysis": analysis
         }
     except Exception as e:
@@ -393,196 +381,19 @@ async def get_supported_chains():
         ]
     }
 
-def _generate_executive_summary(
-    token_analysis: dict,
-    exchange_prep: dict,
-    routing: dict
-) -> str:
-    """Generate executive summary"""
-    score = token_analysis["readiness_score"]
-    metrics = token_analysis["metrics"]
-    
-    summary = f"Token readiness grade: {score.grade} ({score.total_score:.1f}/100). "
-    
-    if score.grade in ["A", "B"]:
-        summary += "Token shows strong fundamentals for exchange listing. "
-    elif score.grade == "C":
-        summary += "Token has moderate readiness with areas for improvement. "
-    else:
-        summary += "Token requires significant improvements before exchange listing. "
-    
-    # Handle case when market data is not available from BlockFrost
-    if hasattr(metrics, 'market_data_available') and not metrics.market_data_available:
-        summary += "Liquidity: N/A (requires DEX API integration). "
-    else:
-        summary += f"Current liquidity: ${metrics.liquidity_usd:,.0f}. "
-    summary += f"Holder count: {metrics.holder_count}. "
-    
-    unmet = len([r for r in exchange_prep["requirements"] if not r.meets_requirement])
-    if unmet > 0:
-        summary += f"{unmet} exchange requirements need attention. "
-    
-    summary += f"Recommended target chain: {routing['recommended_chain']}."
-    
-    return summary
-
-def _generate_next_steps(
-    recommendations: List[Recommendation],
-    unmet_requirements: List[ExchangeRequirement]
-) -> List[str]:
-    """Generate prioritized next steps - concise and actionable"""
-    steps = []
-    
-    # High priority recommendations
-    high_priority = [r for r in recommendations if r.priority == "high"]
-    for rec in high_priority[:2]:  # Top 2
-        steps.append(f"[HIGH] {rec.recommendation.strip()}")
-    
-    # Critical exchange requirements
-    for req in unmet_requirements[:2]:  # Top 2
-        steps.append(f"[EXCHANGE] {req.requirement.strip()}")
-    
-    # Medium priority recommendations
-    medium_priority = [r for r in recommendations if r.priority == "medium"]
-    for rec in medium_priority[:2]:  # Top 2
-        steps.append(f"[MEDIUM] {rec.recommendation.strip()}")
-    
-    if not steps:
-        steps.append("Continue monitoring metrics and market conditions")
-    
-    return steps[:5]  # Max 5 steps
-
-# ============================================================================
-# EMAIL ENDPOINTS
-# ============================================================================
-
-from pydantic import BaseModel, EmailStr
-
-class SendEmailRequest(BaseModel):
-    """Request model for sending email"""
-    to_email: EmailStr
-    analysis_id: str
-    cc: List[EmailStr] = []
-
-class SendEmailResponse(BaseModel):
-    """Response model for email sending"""
-    success: bool
-    message: str
-    timestamp: str = None
-    recipient: str = None
-
-@app.post("/api/send-email", response_model=SendEmailResponse)
-async def send_analysis_email(request: SendEmailRequest):
-    """
-    Send analysis report via email with PDF attachment
-    
-    Features:
-    - Professional HTML email formatting
-    - Automatic PDF attachment
-    - CC/BCC support
-    - Retry logic on failure
-    - Delivery logging
-    """
-    try:
-        # Retrieve analysis from cache
-        if request.analysis_id not in analysis_cache:
-            raise HTTPException(
-                status_code=404,
-                detail=f"Analysis {request.analysis_id} not found. Please run analysis first."
-            )
-        
-        analysis_data = analysis_cache[request.analysis_id]
-        
-        # Get PDF path
-        pdf_path = analysis_data.get("pdf_path")
-        if not pdf_path or not os.path.exists(pdf_path):
-            raise HTTPException(
-                status_code=404,
-                detail="PDF report not found. Please regenerate the analysis."
-            )
-        
-        # Send email
-        result = await email_service.send_analysis_report(
-            to_email=request.to_email,
-            token_name=analysis_data.get("token_name", "Unknown"),
-            token_symbol=analysis_data.get("token_symbol", "???"),
-            pdf_path=pdf_path,
-            readiness_score=analysis_data.get("readiness_score", {}).get("total_score", 0),
-            grade=analysis_data.get("readiness_score", {}).get("grade", "N/A"),
-            cc=request.cc if request.cc else None
-        )
-        
-        if not result.get("success"):
-            # Check if mock mode
-            if result.get("mock"):
-                logger.warning("Email service in mock mode - returning success for demo")
-                return SendEmailResponse(
-                    success=True,
-                    message="✅ Email would be sent (demo mode - configure SMTP for real sending)",
-                    timestamp=datetime.utcnow().isoformat(),
-                    recipient=request.to_email
-                )
-            raise HTTPException(
-                status_code=500,
-                detail=result.get("message", "Failed to send email")
-            )
-        
-        return SendEmailResponse(**result)
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error in send_analysis_email: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-@app.get("/api/email-log")
-async def get_email_log(limit: int = 50):
-    """
-    Get recent email delivery log
-    
-    Returns history of email sending attempts with status
-    """
-    try:
-        return {
-            "log": email_service.get_delivery_log(limit=limit),
-            "total": len(email_service.delivery_log)
-        }
-    except Exception as e:
-        logger.error(f"Error retrieving email log: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-# ============================================================================
-# PDF DOWNLOAD ENDPOINT (Enhanced)
-# ============================================================================
-
 @app.get("/api/download/pdf/{analysis_id}")
 async def download_pdf(analysis_id: str):
-    """
-    Download PDF report with security token validation
-    
-    Features:
-    - Secure file serving
-    - Proper MIME types
-    - Content-Disposition headers for download
-    """
+    """Download PDF report"""
     try:
-        # Check cache
         if analysis_id not in analysis_cache:
-            raise HTTPException(
-                status_code=404,
-                detail="Analysis not found. PDF may have expired."
-            )
+            raise HTTPException(status_code=404, detail="Analysis not found. PDF may have expired.")
         
         analysis_data = analysis_cache[analysis_id]
         pdf_path = analysis_data.get("pdf_path")
         
         if not pdf_path or not os.path.exists(pdf_path):
-            raise HTTPException(
-                status_code=404,
-                detail="PDF file not found"
-            )
+            raise HTTPException(status_code=404, detail="PDF file not found")
         
-        # Secure filename
         token_symbol = analysis_data.get("token_symbol", "TOKEN")
         filename = f"{token_symbol}_Analysis_{analysis_id[:8]}.pdf"
         
@@ -604,17 +415,9 @@ async def download_pdf(analysis_id: str):
         logger.error(f"Error downloading PDF: {e}")
         raise HTTPException(status_code=500, detail="Failed to download PDF")
 
-# ============================================================================
-# ANALYSIS STATUS ENDPOINT
-# ============================================================================
-
 @app.get("/api/analysis/{analysis_id}/status")
 async def get_analysis_status(analysis_id: str):
-    """
-    Get analysis status and metadata
-    
-    Returns analysis information without full data payload
-    """
+    """Get analysis status and metadata"""
     try:
         if analysis_id not in analysis_cache:
             raise HTTPException(status_code=404, detail="Analysis not found")
@@ -640,8 +443,62 @@ async def get_analysis_status(analysis_id: str):
         logger.error(f"Error getting analysis status: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+def _generate_executive_summary(
+    token_analysis: dict,
+    exchange_prep: dict,
+    routing: dict
+) -> str:
+    """Generate executive summary"""
+    score = token_analysis["readiness_score"]
+    metrics = token_analysis["metrics"]
+    
+    summary = f"Token readiness grade: {score.grade} ({score.total_score:.1f}/100). "
+    
+    if score.grade in ["A", "B"]:
+        summary += "Token shows strong fundamentals for exchange listing. "
+    elif score.grade == "C":
+        summary += "Token has moderate readiness with areas for improvement. "
+    else:
+        summary += "Token requires significant improvements before exchange listing. "
+    
+    if hasattr(metrics, 'market_data_available') and not metrics.market_data_available:
+        summary += "Liquidity: N/A (requires DEX API integration). "
+    else:
+        summary += f"Current liquidity: ${metrics.liquidity_usd:,.0f}. "
+    summary += f"Holder count: {metrics.holder_count}. "
+    
+    unmet = len([r for r in exchange_prep["requirements"] if not r.meets_requirement])
+    if unmet > 0:
+        summary += f"{unmet} exchange requirements need attention. "
+    
+    summary += f"Recommended target chain: {routing['recommended_chain']}."
+    
+    return summary
+
+def _generate_next_steps(
+    recommendations: List[Recommendation],
+    unmet_requirements: List[ExchangeRequirement]
+) -> List[str]:
+    """Generate prioritized next steps"""
+    steps = []
+    
+    high_priority = [r for r in recommendations if r.priority == "high"]
+    for rec in high_priority[:2]:
+        steps.append(f"[HIGH] {rec.recommendation.strip()}")
+    
+    for req in unmet_requirements[:2]:
+        steps.append(f"[EXCHANGE] {req.requirement.strip()}")
+    
+    medium_priority = [r for r in recommendations if r.priority == "medium"]
+    for rec in medium_priority[:2]:
+        steps.append(f"[MEDIUM] {rec.recommendation.strip()}")
+    
+    if not steps:
+        steps.append("Continue monitoring metrics and market conditions")
+    
+    return steps[:5]
+
 if __name__ == "__main__":
-    import os
     uvicorn.run(
         "main:app",
         host="0.0.0.0",

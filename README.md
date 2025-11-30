@@ -12,8 +12,7 @@ Analyzes Cardano tokens and tells you exactly what's needed for exchange listing
 - On-chain analysis with holder distribution and liquidity metrics
 - AI-powered readiness scoring (A+ to F)
 - Exchange-specific requirements for Binance, Coinbase, Kraken, KuCoin, Gate.io
-- Cross-chain routing for Ethereum, BSC, Polygon, Solana
-- Professional PDF reports with email delivery
+- Cross-chain routing for Ethereum, BSC, Polygon, Solana and many more
 
 ---
 
@@ -40,11 +39,6 @@ BLOCKFROST_API_KEY=mainnet_your_key_here
 OPENAI_API_KEY=sk-your_key_here
 BLOCKFROST_NETWORK=mainnet
 
-# Optional - for email reports
-SMTP_HOST=smtp.gmail.com
-SMTP_PORT=587
-SMTP_USER=your-email@gmail.com
-SMTP_PASSWORD=your-app-password
 ```
 
 **Get API Keys:**

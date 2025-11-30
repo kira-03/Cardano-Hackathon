@@ -54,13 +54,11 @@ export default function ResultsDashboard({ result, onNewAnalysis }: ResultsDashb
 
       const blob = new Blob([response.data], { type: 'application/pdf' })
       const url = window.URL.createObjectURL(blob)
-      const link = document.createElement('a')
-      link.href = url
-      link.download = `token_analysis_${result.analysis_id?.slice(0, 8) || 'report'}.pdf`
-      document.body.appendChild(link)
-      link.click()
-      document.body.removeChild(link)
-      window.URL.revokeObjectURL(url)
+      window.open(url, '_blank')
+      
+      setTimeout(() => {
+        window.URL.revokeObjectURL(url)
+      }, 100)
     } catch (error) {
       console.error('Error exporting PDF:', error)
       alert('Failed to export PDF. Please try again.')
@@ -125,8 +123,8 @@ export default function ResultsDashboard({ result, onNewAnalysis }: ResultsDashb
               disabled={isExporting}
               className="pixel-btn pixel-btn-primary flex items-center gap-2"
             >
-              <Download className="w-4 h-4" />
-              {isExporting ? 'EXPORTING...' : 'DOWNLOAD PDF'}
+              <FileText className="w-4 h-4" />
+              {isExporting ? 'LOADING...' : 'VIEW PDF'}
             </button>
 
             {/* Email feature removed */}

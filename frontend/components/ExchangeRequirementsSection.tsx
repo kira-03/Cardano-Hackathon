@@ -48,14 +48,13 @@ export default function ExchangeRequirementsSection({ requirements, proposalUrl 
           EXCHANGE REQUIREMENTS
         </h3>
         {proposalUrl && (
-          <a
-            href={proposalUrl}
-            target="_blank"
+          <button
+            onClick={() => window.open(proposalUrl, '_blank')}
             className="pixel-btn pixel-btn-primary flex items-center gap-2"
           >
-            <span className="text-xl">📥</span>
-            DOWNLOAD
-          </a>
+            <span className="text-xl">📄</span>
+            VIEW PROPOSAL
+          </button>
         )}
       </div>
 
